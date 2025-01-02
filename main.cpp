@@ -3,6 +3,8 @@
 #include <concepts>
 #include <string>
 
+// maybe better approach for LinAlgPP?
+
 template <typename Tn>
 concept Number = requires(Tn a)
 {
