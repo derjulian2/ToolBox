@@ -1,4 +1,4 @@
-thulium gui-library
+thulium gui-library for c++
 
 built on top of SFML (credits to the creators)
 
