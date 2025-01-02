@@ -1,9 +1,9 @@
 //////////////////////////////////////////////////
-/// LinAlg++ Library						   ///
-///											   ///
+/// LinAlg++ Library                           ///
+///                                            ///
 /// Provides Helper Classes and Functions for  ///
-/// handling Linear Algebra Math in C++		   ///
-/// 2024 Julian Benzel | .hpp Header File	   ///
+/// handling Linear Algebra Math in C++        ///
+/// 2024 Julian Benzel | .hpp Header File      ///
 //////////////////////////////////////////////////
 #ifndef LINALGPP_LIB
 #define LINALGPP_LIB
