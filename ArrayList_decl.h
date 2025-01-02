@@ -6,6 +6,7 @@
 /// <para> - seems to be a lot faster than std::vector, but probably has some drawbacks </para>
 /// <para> - the people who built std::vector probably designed it the way it is for a reason </para>
 /// <para> - not entirely sure if this is 100% memory safe, so far no errors though </para>
+/// <para> - implementations are stored in seperate .h file because templates compile a little wonky in .cpp files
 /// </summary>
 template <typename T>
 class ArrayList
