@@ -1,7 +1,7 @@
 ////////////////////////////////////////
 #include "CmdDialog.hpp"
 ////////////////////////////////////////
-CmdDialogFlags operator|(const CmdDialogFlags& f, const CmdDialogFlags& v)
+const CmdDialogFlags operator|(const CmdDialogFlags& f, const CmdDialogFlags& v)
 {
 	return static_cast<CmdDialogFlags>(static_cast<long>(f) | static_cast<long>(v));
 }
@@ -79,26 +79,26 @@ void CmdDialog::QueryInput()
 	}
 }
 
-void CmdDialog::AddCmdDialogFunction(std::string name, std::function<void(const size_t&, const Arguments&)> func)
+void CmdDialog::AddCmdDialogFunction(std::string name, std::function<void(const uint64_t&, const Arguments&)> func)
 {
 	functions.emplace_back(CmdDialog::CmdDialogFunction({.name = name, .func = func}));
 }
 
-void CmdDialog::AddCmdDialogFunction(std::string name, std::string description, std::function<void(const size_t&, const Arguments&)> func)
+void CmdDialog::AddCmdDialogFunction(std::string name, std::string description, std::function<void(const uint64_t&, const Arguments&)> func)
 {
 	functions.emplace_back(CmdDialog::CmdDialogFunction({ .name = name, .description = description, .func = func }));
 }
 
 void CmdDialog::AddDefaultQuit()
 {
-	AddCmdDialogFunction("q", "default generated quit function - terminates the dialog", [this](const size_t&, const Arguments&) {terminate = true; });
-	AddCmdDialogFunction("quit", "default generated quit function - terminates the dialog", [this](const size_t&, const Arguments&) {terminate = true; });
+	AddCmdDialogFunction("q", "default generated quit function - terminates the dialog", [this](const uint64_t&, const Arguments&) {terminate = true; });
+	AddCmdDialogFunction("quit", "default generated quit function - terminates the dialog", [this](const uint64_t&, const Arguments&) {terminate = true; });
 }
 
 void CmdDialog::AddDefaultHelp()
 {
-	AddCmdDialogFunction("h", "default generated help function - shows this function listing", [this](const size_t&, const Arguments&) { PrintHelp(); });
-	AddCmdDialogFunction("help", "default generated help function - shows this function listing", [this](const size_t&, const Arguments&) { PrintHelp(); });
+	AddCmdDialogFunction("h", "default generated help function - shows this function listing", [this](const uint64_t&, const Arguments&) { PrintHelp(); });
+	AddCmdDialogFunction("help", "default generated help function - shows this function listing", [this](const uint64_t&, const Arguments&) { PrintHelp(); });
 }
 
 void CmdDialog::PrintHelp()

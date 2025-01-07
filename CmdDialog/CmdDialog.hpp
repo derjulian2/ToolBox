@@ -13,7 +13,7 @@ enum CmdDialogFlags
 	DEFAULT_QUIT = 0b1,
 	DEFAULT_HELP = 0b10
 };
-CmdDialogFlags operator|(const CmdDialogFlags& f, const CmdDialogFlags& v);
+const CmdDialogFlags operator|(const CmdDialogFlags& f, const CmdDialogFlags& v);
 
 typedef std::vector<std::string> Arguments;
 
@@ -26,8 +26,8 @@ public:
 	CmdDialog(const std::string& name, const CmdDialogFlags& flags);
 
 	void QueryInput();
-	void AddCmdDialogFunction(std::string name, std::function<void(const size_t&, const Arguments&)> func);
-	void AddCmdDialogFunction(std::string name, std::string description, std::function<void(const size_t&, const Arguments&)> func);
+	void AddCmdDialogFunction(std::string name, std::function<void(const uint64_t&, const Arguments&)> func);
+	void AddCmdDialogFunction(std::string name, std::string description, std::function<void(const uint64_t&, const Arguments&)> func);
 
 	void AddDefaultQuit();
 	void AddDefaultHelp();
@@ -39,7 +39,7 @@ private:
 	{
 		std::string name;
 		std::string description;
-		std::function<void(const size_t&, const Arguments&)> func;
+		std::function<void(const uint64_t&, const Arguments&)> func;
 	};
 
 	std::vector<CmdDialogFunction> functions;
