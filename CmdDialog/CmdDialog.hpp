@@ -13,7 +13,7 @@ enum CmdDialogFlags
 	DEFAULT_QUIT = 0b1,
 	DEFAULT_HELP = 0b10
 };
-const CmdDialogFlags operator|(const CmdDialogFlags& f, const CmdDialogFlags& v);
+CmdDialogFlags operator|(const CmdDialogFlags& f, const CmdDialogFlags& v);
 
 typedef std::vector<std::string> Arguments;
 
