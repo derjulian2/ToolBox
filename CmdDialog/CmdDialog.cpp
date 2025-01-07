@@ -1,7 +1,7 @@
 ////////////////////////////////////////
 #include "CmdDialog.hpp"
 ////////////////////////////////////////
-const CmdDialogFlags operator|(const CmdDialogFlags& f, const CmdDialogFlags& v)
+CmdDialogFlags operator|(const CmdDialogFlags& f, const CmdDialogFlags& v)
 {
 	return static_cast<CmdDialogFlags>(static_cast<long>(f) | static_cast<long>(v));
 }
