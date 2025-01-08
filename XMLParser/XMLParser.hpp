@@ -1,19 +1,19 @@
 ////////////////////////////////////////////////////////////
 /*
-* rudimentary XML-parser
-* - stores a XML-tag as 'XMLNode'
-* - Subtags are stored in XMLNode::SubNodes
-* - stores XML-attributes in 'XMLAttribute'
-* - stores a whole XML-tree in 'XML'
+* rudimentary XMLTree-parser
+* - stores a XMLTree-tag as 'XMLTag'
+* - Subtags are stored in XMLTag::SubTags
+* - stores XMLTree-attributes in 'XMLAttribute'
+* - stores a whole XMLTree-tree in 'XMLTree'
 * - all classes are printable using std::ostream& << operator
 * 
 * - currently supports no error detection whatsoever. if your xml-file is faulty or the parse
 *   does not recognize it, errors in your data will occur.
 * - beware that adding a subtag to a tag erases its value. data may be lost that way.
 * 
-* use XML::parseXMLString() to parse a raw string
-* use XML::parseXMLtoString() to parse XML-class to a string
-* use XML-class and XML::AddNode() / XML::AddAttribute() to construct an XML-message
+* use XMLTree::parseXMLString() to parse a raw string
+* use XMLTree::parseXMLtoString() to parse XMLTree-class to a string
+* use XMLTree-class and XMLTree::AddTag() / XMLTree::AddAttribute() to construct an XMLTree-message
 */
 ////////////////////////////////////////////////////////////
 #ifndef XML_PARSER_H
@@ -22,104 +22,122 @@
 #include <string>
 #include <sstream>
 #include <iostream>
-#include <vector>
+#include <list>
 #include <regex>
 ////////////////////////////////////////////////////////////
 /*
 * XMLAttribute class
-* stores name and value of an XML-attribute
+* stores name and value of an XMLTree-attribute
 */
 class XMLAttribute
 {
 public:
 	XMLAttribute(std::string _name, std::string _val);
 
+	std::string& getName();
+	std::string& getValue();
+	std::string toXML() const;
+private:
+	friend std::ostream& operator<<(std::ostream& os, const XMLAttribute& atr);
+
 	std::string name;
 	std::string value;
-
-	friend std::ostream& operator<<(std::ostream& os, const XMLAttribute& atr);
 };
-
 std::ostream& operator<<(std::ostream& os, const XMLAttribute& atr);
 /*
-* XMLNode class
-* stores name and value or subtags of a corresponding XML-tag
+* XMLTag class
+* stores name and value or subtags of a corresponding XMLTree-tag
 */
-class XMLNode
+class XMLTag
 {
 public:
-	XMLNode(std::string _name);
-	XMLNode(std::string _name, std::string _val);
+	XMLTag(const std::string& _name);
+	XMLTag(const std::string& _name, const std::string& _val);
 
-	XMLNode& AddNode(const XMLNode& subnode);
+	std::string& getName();
+	std::string& getValue();
+	std::list<XMLTag>& getSubTags();
+	std::list<XMLAttribute>& getAttributes();
+	XMLTag& getParentTag();
+	void setParentTag(XMLTag& tag);
 
+	XMLTag& AddTag(const std::string& _name);
+	XMLTag& AddTag(const std::string& _name, const std::string& _val);
+	XMLTag& AddTag(const XMLTag& subtag);
+
+	XMLAttribute& AddAttribute(const std::string& _name, const std::string& _val);
 	XMLAttribute& AddAttribute(const XMLAttribute& atr);
 
-	friend std::ostream& operator<<(std::ostream& os, const XMLNode& node);
+	std::string toXML() const;
+private:
+	friend std::ostream& operator<<(std::ostream& os, const XMLTag& tag);
 
-	XMLNode* parent = nullptr;
+	std::string name;
+	std::string value;
+	uint64_t depth = 0;
 
-	std::string name = "";
-	std::string value = "";
-	uint16_t depth = NULL;
+	std::list<XMLAttribute> attributes;
+	std::list<XMLTag> subtags;
 
-	std::vector<XMLAttribute> Attributes;
-	std::vector<XMLNode> SubNodes;
-
-};
-std::ostream& operator<<(std::ostream& os, const XMLNode& node);
-/*
-* XML-parser phase-indicators
-* intended for internal parser-processes only
-*/
-enum XMLphase
-{
-	IDLE					= 0b0,
-
-	OPEN_TAG				= 0b1,
-	CLOSE_TAG				= 0b10,
-
-	READING_NAME			= 0b100,
-	READING_ATTRIBUTE_NAME	= 0b1000,
-	READING_VALUE			= 0b10000,
-	READING_ATTRIBUTE_VALUE = 0b100000
+	XMLTag* parent = nullptr;
 
 };
-constexpr XMLphase operator|(const XMLphase& _v, const XMLphase& _w);
+std::ostream& operator<<(std::ostream& os, const XMLTag& tag);
 /*
-* XML-parser flags to indicate certain events when parsing
-* intended for internal parser-processes only
+* XMLTree class
+* stores a complete XMLTree-tree
 */
-enum XMLflag
-{
-	NO_FLAGS = 0b0,
-	COMPLETED_NAME = 0b1,
-	COMPLETED_VALUE = 0b10,
-	COMPLETED_ATTRIBUTE_NAME = 0b100,
-	COMPLETED_ATTRIBUTE_VALUE = 0b1000,
-};
-/*
-* XML class
-* stores a complete XML-tree
-*/
-class XML
+class XMLTree
 {
 public:
-	static XML parseXMLString(std::string _raw);
-	static std::string parseXMLtoString(XML xml);
-	XMLNode& AddNode(std::string name);
-	XMLNode& AddNode(std::string name, std::string value);
+	XMLTree(const std::string& raw_xml);
+
+	std::string toString() const;
+	std::string operator()(std::string) const;
+
+	XMLTag& AddTag(const std::string& name);
+	XMLTag& AddTag(const std::string& name, const std::string& value);
 private:
+	friend std::ostream& operator<<(std::ostream& os, const XMLTree& xml);
+	/*
+	* XMLTree-parser state-indicators
+	* intended for internal parser-processes only
+	*/
+	enum XMLParserState
+	{
+		IDLE = 0b0,
+
+		OPEN_TAG = 0b1,
+		CLOSE_TAG = 0b10,
+
+		READING_NAME = 0b100,
+		READING_ATTRIBUTE_NAME = 0b1000,
+		READING_VALUE = 0b10000,
+		READING_ATTRIBUTE_VALUE = 0b100000
+
+	};
+	/*
+	* XMLTree-parser flags to indicate certain events when parsing
+	* intended for internal parser-processes only
+	*/
+	enum XMLParserFlag
+	{
+		NO_FLAGS = 0b0,
+		COMPLETED_NAME = 0b1,
+		COMPLETED_VALUE = 0b10,
+		COMPLETED_ATTRIBUTE_NAME = 0b100,
+		COMPLETED_ATTRIBUTE_VALUE = 0b1000,
+	};
+
 	static char getToken(std::string& _raw);
-	static std::string format(std::string& _i);
+	void parseString(std::string _raw);
 
-	static std::string NodetoString(const XMLNode& node);
-
-	std::vector<XMLNode> Nodes;
-
-	friend std::ostream& operator<<(std::ostream& os, const XML& xml);
+	std::list<XMLTag> root_tags;
 };
-std::ostream& operator<<(std::ostream& os, const XML& xml);
+std::ostream& operator<<(std::ostream& os, const XMLTree& xml);
+
+XMLTree parseXMLString(const std::string& raw_xml);
+std::string parseXMLTree(const XMLTree& xml_tree);
 ////////////////////////////////////////////////////////////
 #endif
 ////////////////////////////////////////////////////////////
