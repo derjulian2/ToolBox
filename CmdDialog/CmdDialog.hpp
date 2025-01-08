@@ -45,8 +45,7 @@ private:
 	std::vector<CmdDialogFunction> functions;
 	
 	void PrintHelp();
-	std::vector<std::string> parseInput(std::string input);
-	char getToken(std::string& input);
+	std::vector<std::string> parseInput(const std::string& input);
 };
 ////////////////////////////////////////
 #endif

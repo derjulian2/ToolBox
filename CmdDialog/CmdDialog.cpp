@@ -113,8 +113,9 @@ void CmdDialog::PrintHelp()
 	}
 }
 
-std::vector<std::string> CmdDialog::parseInput(std::string input)
+std::vector<std::string> CmdDialog::parseInput(const std::string& input)
 {
+	uint64_t iterator = 0;
 	std::vector<std::string> res;
 	std::string parse_out;
 	bool FINISHED_WORD_FLAG = false;
@@ -122,7 +123,9 @@ std::vector<std::string> CmdDialog::parseInput(std::string input)
 
 	while (!input.empty())
 	{
-		char token = getToken(input);
+		char token = input.at(iterator);
+		iterator++;
+
 		switch (token)
 		{
 		case(' '):
@@ -148,12 +151,4 @@ std::vector<std::string> CmdDialog::parseInput(std::string input)
 
 	return res;
 }
-
-char CmdDialog::getToken(std::string& input)
-{
-	char res = input[0];
-	input = input.substr(1);
-	return res;
-}
-
 ////////////////////////////////////////
