@@ -23,7 +23,7 @@
 #include <sstream>
 #include <iostream>
 #include <list>
-#include <regex>
+#include <vector>
 ////////////////////////////////////////////////////////////
 /*
 * XMLAttribute class
@@ -105,32 +105,17 @@ private:
 	*/
 	enum XMLParserState
 	{
-		IDLE = 0b0,
+		IDLE,
+		FINISHED,
+		ERROR,
 
-		OPEN_TAG = 0b1,
-		CLOSE_TAG = 0b10,
-
-		READING_NAME = 0b100,
-		READING_ATTRIBUTE_NAME = 0b1000,
-		READING_VALUE = 0b10000,
-		READING_ATTRIBUTE_VALUE = 0b100000
-
-	};
-	/*
-	* XMLTree-parser flags to indicate certain events when parsing
-	* intended for internal parser-processes only
-	*/
-	enum XMLParserFlag
-	{
-		NO_FLAGS = 0b0,
-		COMPLETED_NAME = 0b1,
-		COMPLETED_VALUE = 0b10,
-		COMPLETED_ATTRIBUTE_NAME = 0b100,
-		COMPLETED_ATTRIBUTE_VALUE = 0b1000,
+		NAME_FINISHED,
+		VAL_FINISHED,
+		ATTR_NAME_FINISHED,
+		ATTR_VAL_FINISHED
 	};
 
-	static char getToken(std::string& _raw);
-	void parseString(std::string _raw);
+	void parseString(const std::string& _raw);
 
 	std::list<XMLTag> root_tags;
 };

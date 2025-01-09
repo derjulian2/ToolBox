@@ -89,25 +89,31 @@ XMLAttribute& XMLTag::AddAttribute(const XMLAttribute& atr)
 std::string XMLTag::toXML() const
 {
 	std::stringstream res;
+	// print depth indentation
 	for (uint64_t i = 0; i < depth; i++)
 		res << ' ';
+	// print opening tag and attributes
 	res << '<' << name;
 	for (const XMLAttribute& atr : attributes)
 		res << ' ' << atr.toXML();
 	res << '>';
+	// print subtags, if any
 	if (subtags.size() != 0)
 	{
 		for (const XMLTag& tag : subtags)
 			res << '\n' << tag.toXML();
 	}
 	else
+		// print value if no subtags
 		res << value;
 	if (subtags.size() != 0)
 	{
+		// adjust indentation line breaks for subtags
 		res << '\n';
 		for (uint64_t i = 0; i < depth; i++)
 			res << ' ';
 	}
+	// closing tag
 	res << '<' << '/' << name << '>';
 	return res.str();
 }
@@ -160,159 +166,172 @@ std::string XMLTree::operator()(std::string) const
 {
 	return toString();
 }
-char XMLTree::getToken(std::string& _raw)
+void XMLTree::parseString(const std::string& raw_xml)
 {
-	char res = _raw[0];
-	_raw = _raw.substr(1);
-	return res;
-}
-void XMLTree::parseString(std::string raw_xml)
-{
-	try
+	char EXPECTING = '\0';
+	char PARSING = '\0';
+	bool __CLOSE_TAG__ = false;
+
+	XMLParserState state = IDLE;
+	uint64_t iterator = 0;
+	XMLTag* last_tag = nullptr;
+
+	std::vector<std::string> open_tags;
+
+	std::string parse_out;
+
+	char token = '\0';
+	while (iterator != raw_xml.length())
 	{
-		XMLParserFlag flags = NO_FLAGS;
-		XMLParserState phase = IDLE;
+		token = raw_xml[iterator];
+		iterator++;
 
-		std::string parse_out;
-		XMLTag* last_tag = nullptr;
-
-		while (!raw_xml.empty())
+		switch (token)
 		{
-			char token = getToken(raw_xml);
+		case ('<'):
+			if (PARSING == 'V')
+				state = VAL_FINISHED;
 
-			switch (token)
-			{
-			case ('<'):
-			{
-				if (phase == READING_VALUE)
-					flags = COMPLETED_VALUE;
-				phase = OPEN_TAG;
-				break;
-			}
-			case ('>'):
-			{
-				if (phase == READING_NAME)
-					flags = COMPLETED_NAME;
-				phase = CLOSE_TAG;
-				break;
-			}
-			case (' '):
-			{
-				if (phase == READING_NAME)
-				{
-					flags = COMPLETED_NAME;
-					phase = READING_ATTRIBUTE_NAME;
-				}
-				else if (phase == READING_VALUE)
-				{
-					parse_out.append(1, token);
-				}
-				break;
-			}
-			case ('/'):
-			{
+			EXPECTING = 'N';
+			break;
+		case ('>'):
+			if (PARSING == 'N')
+				state = NAME_FINISHED;
+			else if (EXPECTING == 'A')
+				EXPECTING = 'V';
+			else
+				state = ERROR;
+
+			break;
+		case (' '):
+
+			if (PARSING == 'N')
+				state = NAME_FINISHED;
+			else if (PARSING == 'A')
+				state = ATTR_NAME_FINISHED;
+			else if (PARSING == 'P')
 				parse_out.append(1, token);
-				break;
-			}
-			case ('='):
-			{
-				if (phase == READING_ATTRIBUTE_NAME)
-				{
-					flags = COMPLETED_ATTRIBUTE_NAME;
-				}
-				break;
-			}
-			case ('?'):
-				continue;
-				break;
-			case ('\r'):
-			case ('\n'):
-			case ('\r\n'):
-			case ('\t'):
-				continue;
-				break;
-			case ('\"'):
-			{
-				if (phase == READING_ATTRIBUTE_NAME)
-				{
-					phase = READING_ATTRIBUTE_VALUE;
-				}
-				else if (phase == READING_ATTRIBUTE_VALUE)
-				{
-					flags = COMPLETED_ATTRIBUTE_VALUE;
-				}
-				break;
-			}
-			default:
-			{
-				if (phase == OPEN_TAG)
-					phase = READING_NAME;
-				if (phase == CLOSE_TAG)
-					phase = READING_VALUE;
-				if (phase == READING_NAME ||
-					phase == READING_VALUE ||
-					phase == READING_ATTRIBUTE_NAME ||
-					phase == READING_ATTRIBUTE_VALUE)
-					parse_out.append(1, token);
-				break;
-			}
-			}
 
-			if (flags == COMPLETED_NAME)
+			break;
+		case ('/'):
+			if (EXPECTING == 'N' && !__CLOSE_TAG__)
+				__CLOSE_TAG__ = true;
+			else
+				state = ERROR;
+			break;
+		case ('='):
+			if (PARSING == 'A')
+				state = ATTR_NAME_FINISHED;
+			else
+				state = ERROR;
+			break;
+		case ('\"'):
+			if (EXPECTING == 'P')
 			{
-				if (parse_out[0] != '/')
-				{
-					if (last_tag == nullptr)
-					{
-						root_tags.emplace_back(XMLTag(parse_out));
-						last_tag = &root_tags.back();
-					}
-					else
-					{
-						last_tag = &last_tag->AddTag(XMLTag(parse_out));
-					}
-				}
-				else
-				{
-					try
-					{
-						last_tag = &last_tag->getParentTag();
-					}
-					catch (std::exception e) {} // parent tag was nullptr, meaning an error occured or
-					                            // the tag was a root tag
-				}
-				parse_out.clear();
-				flags = NO_FLAGS;
+				PARSING = 'P';
+				EXPECTING = '\0';
 			}
-			if (flags == COMPLETED_VALUE)
-			{
-				if (last_tag != nullptr)
-					last_tag->getValue() = parse_out;
+			else if (PARSING == 'P')
+				state = ATTR_VAL_FINISHED;
+			else
+				state = ERROR;
 
-				parse_out.clear();
-				flags = NO_FLAGS;
-			}
-			if (flags == COMPLETED_ATTRIBUTE_NAME)
+
+			break;
+		case ('?'):
+		case ('\r'):
+		case ('\n'):
+		case ('\r\n'):
+		case ('\t'):
+			continue;
+			break;
+		default:
+			if (EXPECTING == 'N')
 			{
-				if (last_tag != nullptr)
-					last_tag->AddAttribute(XMLAttribute(parse_out, ""));
-				parse_out.clear();
-				flags = NO_FLAGS;
+				PARSING = 'N';
+				EXPECTING = '\0';
 			}
-			if (flags == COMPLETED_ATTRIBUTE_VALUE)
+			if (EXPECTING == 'A')
 			{
-				if (last_tag != nullptr)
-					last_tag->getAttributes().back().getValue() = parse_out;
-				parse_out.clear();
-				flags = NO_FLAGS;
+				PARSING = 'A';
+				EXPECTING = '\0';
 			}
+			if (EXPECTING == 'V')
+			{
+				PARSING = 'V';
+				EXPECTING = '\0';
+			}
+			parse_out.append(1, token);
+			break;
 		}
-		phase = IDLE;
+
+		switch (state)
+		{
+		case (NAME_FINISHED):
+			if (!__CLOSE_TAG__)
+			{
+				open_tags.push_back(parse_out);
+				if (last_tag == nullptr)
+					last_tag = &root_tags.emplace_back(XMLTag(parse_out));
+				else
+					last_tag = &last_tag->AddTag(parse_out);
+			}
+			else
+			{
+				if (open_tags[0] == parse_out)
+					open_tags.erase(open_tags.begin());
+				else
+					throw std::runtime_error("error with parsing XML-string");
+				try
+				{
+					last_tag = &last_tag->getParentTag();
+				}
+				catch (std::exception e)
+				{
+					last_tag = nullptr;
+				}
+				__CLOSE_TAG__ = false;
+			}
+			parse_out.clear();
+			state = IDLE;
+
+
+			EXPECTING = 'A';
+			PARSING = '\0';
+			break;
+		case (VAL_FINISHED):
+			last_tag->getValue() = std::string(parse_out);
+			parse_out.clear();
+			state = IDLE;
+
+			if (PARSING == 'V')
+				EXPECTING = 'N';
+			else
+				EXPECTING = '\0';
+			PARSING = '\0';
+			break;
+		case (ATTR_NAME_FINISHED):
+			last_tag->AddAttribute(parse_out, "");
+			parse_out.clear();
+			state = IDLE;
+			PARSING = '\0';
+			EXPECTING = 'P';
+			break;
+		case (ATTR_VAL_FINISHED):
+			last_tag->getAttributes().back().getValue() = parse_out;
+			parse_out.clear();
+			state = IDLE;
+			PARSING = '\0';
+			EXPECTING = 'A';
+			break;
+		case (ERROR):
+			throw std::runtime_error("error with parsing XML-string");
+			break;
+		}
 	}
-	catch (std::exception exception)
-	{
-		std::cerr << "error with parsing XMLTree: " << exception.what() << std::endl;
-	}
+	if (open_tags.size() != 0)
+		throw std::runtime_error("error with parsing XML-string");
+	state = FINISHED;
 }
 std::ostream& operator<<(std::ostream& os, const XMLTree& xml)
 {
