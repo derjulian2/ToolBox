@@ -121,7 +121,7 @@ std::vector<std::string> CmdDialog::parseInput(const std::string& input)
 	bool FINISHED_WORD_FLAG = false;
 	bool READING_FLAG = false;
 
-	while (!input.empty())
+	while (iterator != input.length())
 	{
 		char token = input.at(iterator);
 		iterator++;
