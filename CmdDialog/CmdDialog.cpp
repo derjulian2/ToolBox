@@ -79,14 +79,21 @@ void CmdDialog::QueryInput()
 	}
 }
 
-void CmdDialog::AddCmdDialogFunction(std::string name, std::function<void(const uint64_t&, const Arguments&)> func)
+void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::function<void(const uint64_t&, const Arguments&)>& func)
 {
-	functions.emplace_back(CmdDialog::CmdDialogFunction({.name = name, .func = func}));
+	functions.emplace_back(CmdDialogFunction({.name = name, .func = func}));
 }
-
-void CmdDialog::AddCmdDialogFunction(std::string name, std::string description, std::function<void(const uint64_t&, const Arguments&)> func)
+void CmdDialog::AddCmdDialogFunction(const std::string& name, const Arguments& expected_arguments, const std::function<void(const uint64_t&, const Arguments&)>& func)
 {
-	functions.emplace_back(CmdDialog::CmdDialogFunction({ .name = name, .description = description, .func = func }));
+	functions.emplace_back(CmdDialogFunction({.name = name, .expected_arguments = expected_arguments, .func = func}));
+}
+void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::string& description, const std::function<void(const uint64_t&, const Arguments&)>& func)
+{
+	functions.emplace_back(CmdDialogFunction({.name = name, .description = description, .func = func}));
+}
+void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::string& description, const Arguments& expected_arguments, const std::function<void(const uint64_t&, const Arguments&)>& func)
+{
+	functions.emplace_back(CmdDialogFunction({.name = name,.description = description, .expected_arguments = expected_arguments, .func = func}));
 }
 
 void CmdDialog::AddDefaultQuit()
@@ -107,6 +114,18 @@ void CmdDialog::PrintHelp()
 	for (const CmdDialogFunction& func : functions)
 	{
 		std::cout << " -" << func.name;
+        if (!func.expected_arguments.empty())
+        {
+            std::cout << " ";
+	        for (std::vector<std::string>::const_iterator it = func.expected_arguments.begin(); it != func.expected_arguments.end(); it++)
+	        {
+	        	std::cout << *it;
+                if (it != func.expected_arguments.end() - 1)
+                  std::cout << ", ";
+                else
+                  std::cout << " ";
+	        }
+        }
 		if (!func.description.empty())
 			std::cout << " : " << func.description;
 		std::cout << std::endl;
