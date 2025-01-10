@@ -79,33 +79,33 @@ void CmdDialog::QueryInput()
 	}
 }
 
-void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::function<void(const uint64_t&, const Arguments&)>& func)
+void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::function<void(const ArgCount&, const Arguments&)>& func)
 {
 	functions.emplace_back(CmdDialogFunction({.name = name, .func = func}));
 }
-void CmdDialog::AddCmdDialogFunction(const std::string& name, const Arguments& expected_arguments, const std::function<void(const uint64_t&, const Arguments&)>& func)
+void CmdDialog::AddCmdDialogFunction(const std::string& name, const Arguments& expected_arguments, const std::function<void(const ArgCount&, const Arguments&)>& func)
 {
 	functions.emplace_back(CmdDialogFunction({.name = name, .expected_arguments = expected_arguments, .func = func}));
 }
-void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::string& description, const std::function<void(const uint64_t&, const Arguments&)>& func)
+void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::string& description, const std::function<void(const ArgCount&, const Arguments&)>& func)
 {
 	functions.emplace_back(CmdDialogFunction({.name = name, .description = description, .func = func}));
 }
-void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::string& description, const Arguments& expected_arguments, const std::function<void(const uint64_t&, const Arguments&)>& func)
+void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::string& description, const Arguments& expected_arguments, const std::function<void(const ArgCount&, const Arguments&)>& func)
 {
 	functions.emplace_back(CmdDialogFunction({.name = name,.description = description, .expected_arguments = expected_arguments, .func = func}));
 }
 
 void CmdDialog::AddDefaultQuit()
 {
-	AddCmdDialogFunction("q", "default generated quit function - terminates the dialog", [this](const uint64_t&, const Arguments&) {terminate = true; });
-	AddCmdDialogFunction("quit", "default generated quit function - terminates the dialog", [this](const uint64_t&, const Arguments&) {terminate = true; });
+	AddCmdDialogFunction("q", "default generated quit function - terminates the dialog", [this](const ArgCount&, const Arguments&) {terminate = true; });
+	AddCmdDialogFunction("quit", "default generated quit function - terminates the dialog", [this](const ArgCount&, const Arguments&) {terminate = true; });
 }
 
 void CmdDialog::AddDefaultHelp()
 {
-	AddCmdDialogFunction("h", "default generated help function - shows this function listing", [this](const uint64_t&, const Arguments&) { PrintHelp(); });
-	AddCmdDialogFunction("help", "default generated help function - shows this function listing", [this](const uint64_t&, const Arguments&) { PrintHelp(); });
+	AddCmdDialogFunction("h", "default generated help function - shows this function listing", [this](const ArgCount&, const Arguments&) { PrintHelp(); });
+	AddCmdDialogFunction("help", "default generated help function - shows this function listing", [this](const ArgCount&, const Arguments&) { PrintHelp(); });
 }
 
 void CmdDialog::PrintHelp()
