@@ -96,7 +96,7 @@ public:
 	XMLMessage();
 
 	std::string toString() const;
-	std::string operator()(std::string) const;
+	operator std::string() const;
 
 	XMLTag& AddTag(const std::string& name);
 	XMLTag& AddTag(const std::string& name, const std::string& value);
