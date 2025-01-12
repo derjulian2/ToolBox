@@ -210,7 +210,7 @@ std::string XMLMessage::toString() const
 		res << tag.toXML();
 	return res.str();
 }
-std::string XMLMessage::operator()(std::string) const
+XMLMessage::operator std::string() const
 {
 	return toString();
 }
