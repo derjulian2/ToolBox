@@ -1,19 +1,12 @@
 ////////////////////////////////////////////////////////////
 /*
-* rudimentary XMLTree-parser
-* - stores a XMLTree-tag as 'XMLTag'
-* - Subtags are stored in XMLTag::SubTags
-* - stores XMLTree-attributes in 'XMLAttribute'
-* - stores a whole XMLTree-tree in 'XMLTree'
-* - all classes are printable using std::ostream& << operator
+* basic XML-Parser
 * 
-* - currently supports no error detection whatsoever. if your xml-file is faulty or the parse
-*   does not recognize it, errors in your data will occur.
-* - beware that adding a subtag to a tag erases its value. data may be lost that way.
+* supports regular XML (tag and value pairs), self-closing tags, 
+* processing instructions (?xml...) and attributes
 * 
-* use XMLTree::parseXMLString() to parse a raw string
-* use XMLTree::parseXMLtoString() to parse XMLTree-class to a string
-* use XMLTree-class and XMLTree::AddTag() / XMLTree::AddAttribute() to construct an XMLTree-message
+* use XMLParser::parseXMLString() to parse a string into an XMLMessage
+* use XMLMessage and XMLMessage::AddTag() and the returned XMLTag& as well as it's toString() to construct an XML-message
 */
 ////////////////////////////////////////////////////////////
 #ifndef XML_PARSER_H
@@ -27,15 +20,17 @@
 ////////////////////////////////////////////////////////////
 /*
 * XMLAttribute class
-* stores name and value of an XMLTree-attribute
+* stores name and value of an XMLMessage-attribute
 */
 class XMLAttribute
 {
 public:
 	XMLAttribute(std::string _name, std::string _val);
 
-	std::string& getName();
-	std::string& getValue();
+	std::string getName() const;
+	void setName(const std::string& str);
+	std::string getValue() const;
+	void setValue(const std::string& str);
 	std::string toXML() const;
 private:
 	friend std::ostream& operator<<(std::ostream& os, const XMLAttribute& atr);
@@ -46,7 +41,7 @@ private:
 std::ostream& operator<<(std::ostream& os, const XMLAttribute& atr);
 /*
 * XMLTag class
-* stores name and value or subtags of a corresponding XMLTree-tag
+* stores name and value or subtags of a corresponding XMLMessage-tag
 */
 class XMLTag
 {
@@ -54,11 +49,15 @@ public:
 	XMLTag(const std::string& _name);
 	XMLTag(const std::string& _name, const std::string& _val);
 
-	std::string& getName();
-	std::string& getValue();
+	std::string getName() const;
+	void setName(const std::string& str);
+	std::string getValue() const;
+	void setValue(const std::string& str);
 	std::list<XMLTag>& getSubTags();
 	std::list<XMLAttribute>& getAttributes();
-	XMLTag& getParentTag();
+	void makeProcInstruction();
+	void removeProcInstruction();
+	XMLTag* getParentTag();
 	void setParentTag(XMLTag& tag);
 
 	XMLTag& AddTag(const std::string& _name);
@@ -67,6 +66,9 @@ public:
 
 	XMLAttribute& AddAttribute(const std::string& _name, const std::string& _val);
 	XMLAttribute& AddAttribute(const XMLAttribute& atr);
+	// accepts name-value pairs of string as multiple attributes
+	std::list<XMLAttribute>& AddAttributes(const std::vector<std::string>& _val);
+	std::list<XMLAttribute>& AddAttributes(const std::vector<XMLAttribute>& _val);
 
 	std::string toXML() const;
 private:
@@ -80,17 +82,18 @@ private:
 	std::list<XMLTag> subtags;
 
 	XMLTag* parent = nullptr;
-
+	bool _PROC_ = false;
 };
 std::ostream& operator<<(std::ostream& os, const XMLTag& tag);
 /*
-* XMLTree class
-* stores a complete XMLTree-tree
+* XMLMessage class
+* stores a complete XML-message-tree
+* used to construct custom XML-messages
 */
-class XMLTree
+class XMLMessage
 {
 public:
-	XMLTree(const std::string& raw_xml);
+	XMLMessage();
 
 	std::string toString() const;
 	std::string operator()(std::string) const;
@@ -98,31 +101,62 @@ public:
 	XMLTag& AddTag(const std::string& name);
 	XMLTag& AddTag(const std::string& name, const std::string& value);
 private:
-	friend std::ostream& operator<<(std::ostream& os, const XMLTree& xml);
-	/*
-	* XMLTree-parser state-indicators
-	* intended for internal parser-processes only
-	*/
-	enum XMLParserState
-	{
-		IDLE,
-		FINISHED,
-		ERROR,
-
-		NAME_FINISHED,
-		VAL_FINISHED,
-		ATTR_NAME_FINISHED,
-		ATTR_VAL_FINISHED
-	};
-
-	void parseString(const std::string& _raw);
+	friend std::ostream& operator<<(std::ostream& os, const XMLMessage& xml);
 
 	std::list<XMLTag> root_tags;
 };
-std::ostream& operator<<(std::ostream& os, const XMLTree& xml);
+std::ostream& operator<<(std::ostream& os, const XMLMessage& xml);
+/*
+* XMLParser class
+* used to convert XML-strings to XMLMessage data structures
+*/
+class XMLParser
+{
+public:
+	XMLParser();
+	
+	XMLMessage parseXMLString(const std::string& str);
 
-XMLTree parseXMLString(const std::string& raw_xml);
-std::string parseXMLTree(const XMLTree& xml_tree);
+private:
+	struct RawAttribute
+	{
+		std::string name;
+		std::string value;
+	};
+
+	struct RawTag
+	{
+		std::string content;
+
+		void parseTagContent();
+
+		bool _PROC_INST_ = false;
+		bool _CLOSING_TAG_ = false;
+		bool _SELF_CLOSING_TAG_ = false;
+		std::string name;
+		std::string value;
+		std::list<RawAttribute> attributes;
+	};
+
+	struct RawValue
+	{
+		std::string content;
+
+		bool Validate();
+
+		RawTag* before = nullptr;
+		RawTag* after = nullptr;
+	};
+
+	struct RawXML
+	{
+		void parseString(const std::string& string);
+		void finalize();
+
+		std::list<RawTag> tags;
+		std::list<RawValue> values;
+	};
+};
 ////////////////////////////////////////////////////////////
 #endif
 ////////////////////////////////////////////////////////////

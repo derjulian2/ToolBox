@@ -3,19 +3,25 @@
 #include "XMLParser.hpp"
 #endif
 ////////////////////////////////////////////////////////////
-#ifdef XML_PARSER_H
-////////////////////////////////////////////////////////////
 XMLAttribute::XMLAttribute(std::string _name, std::string _val) : name(_name), value(_val)
 {
 
 }
-std::string& XMLAttribute::getName()
+std::string XMLAttribute::getName() const
 {
 	return name;
 }
-std::string& XMLAttribute::getValue()
+void XMLAttribute::setName(const std::string& str)
+{
+	name = str;
+}
+std::string XMLAttribute::getValue() const
 {
 	return value;
+}
+void XMLAttribute::setValue(const std::string& str)
+{
+	value = str;
 }
 std::string XMLAttribute::toXML() const
 {
@@ -35,13 +41,21 @@ XMLTag::XMLTag(const std::string& _name, const std::string& _val) : name(_name),
 {
 
 }
-std::string& XMLTag::getName()
+std::string XMLTag::getName() const
 {
 	return name;
 }
-std::string& XMLTag::getValue()
+void XMLTag::setName(const std::string& str)
+{
+	name = str;
+}
+std::string XMLTag::getValue() const
 {
 	return value;
+}
+void XMLTag::setValue(const std::string& str)
+{
+	value = str;
 }
 std::list<XMLTag>& XMLTag::getSubTags()
 {
@@ -51,11 +65,20 @@ std::list<XMLAttribute>& XMLTag::getAttributes()
 {
 	return attributes;
 }
-XMLTag& XMLTag::getParentTag()
+void XMLTag::makeProcInstruction()
 {
-	if (parent != nullptr)
-		return *parent;
-	throw std::runtime_error("XMLTag ParentTag was nullptr when trying to access");
+	_PROC_ = true;
+	value.clear();
+	name.insert(0, "?");
+}
+void XMLTag::removeProcInstruction()
+{
+	_PROC_ = false;
+	name = name.substr(name.find_first_of('?') + 1);
+}
+XMLTag* XMLTag::getParentTag()
+{
+	return parent;
 }
 void XMLTag::setParentTag(XMLTag& tag)
 {
@@ -86,6 +109,26 @@ XMLAttribute& XMLTag::AddAttribute(const XMLAttribute& atr)
 	attributes.emplace_back(atr);
 	return attributes.back();
 }
+std::list<XMLAttribute>& XMLTag::AddAttributes(const std::vector<std::string>& _val)
+{
+	if (_val.size() % 2)
+		throw std::runtime_error("invalid attribute input: XML-attributes always come in name-value pairs");
+	std::string temp;
+	for (uint64_t iter = 0; iter < _val.size(); iter++)
+	{
+		if (!(iter % 2))
+			temp = _val[iter];
+		else
+			AddAttribute(temp, _val[iter]);
+	}
+	return attributes;
+}
+std::list<XMLAttribute>& XMLTag::AddAttributes(const std::vector<XMLAttribute>& _val)
+{
+	for (const XMLAttribute& attr : _val)
+		AddAttribute(attr);
+	return attributes;
+}
 std::string XMLTag::toXML() const
 {
 	std::stringstream res;
@@ -96,6 +139,8 @@ std::string XMLTag::toXML() const
 	res << '<' << name;
 	for (const XMLAttribute& atr : attributes)
 		res << ' ' << atr.toXML();
+	if (_PROC_)
+		res << '?';
 	res << '>';
 	// print subtags, if any
 	if (subtags.size() != 0)
@@ -114,7 +159,10 @@ std::string XMLTag::toXML() const
 			res << ' ';
 	}
 	// closing tag
-	res << '<' << '/' << name << '>';
+	if (_PROC_ && parent == nullptr)
+		res << '\n';
+	if (!_PROC_)
+		res << '<' << '/' << name << '>';
 	return res.str();
 }
 std::ostream& operator<<(std::ostream& os, const XMLTag& tag)
@@ -122,7 +170,7 @@ std::ostream& operator<<(std::ostream& os, const XMLTag& tag)
 	if (tag.attributes.size() != 0)
 	{
 		os << tag.name << " (";
-		for (XMLAttribute atr : tag.attributes)
+		for (const XMLAttribute& atr : tag.attributes)
 		{
 			os << atr.getName() << '=' << atr.getValue();
 			if (&atr != &tag.attributes.back())
@@ -141,214 +189,336 @@ std::ostream& operator<<(std::ostream& os, const XMLTag& tag)
 	return os;
 }
 ////////////////////////////////////////////////////////////
-XMLTree::XMLTree(const std::string& raw_xml)
+XMLMessage::XMLMessage()
 {
-	parseString(raw_xml);
+
 }
-XMLTag& XMLTree::AddTag(const std::string& name)
+XMLTag& XMLMessage::AddTag(const std::string& name)
 {
 	root_tags.push_back(XMLTag(name));
 	return root_tags.back();
 }
-XMLTag& XMLTree::AddTag(const std::string& name, const std::string& value)
+XMLTag& XMLMessage::AddTag(const std::string& name, const std::string& value)
 {
 	root_tags.push_back(XMLTag(name, value));
 	return root_tags.back();
 }
-std::string XMLTree::toString() const
+std::string XMLMessage::toString() const
 {
 	std::stringstream res;
 	for (const XMLTag& tag : root_tags)
 		res << tag.toXML();
 	return res.str();
 }
-std::string XMLTree::operator()(std::string) const
+std::string XMLMessage::operator()(std::string) const
 {
 	return toString();
 }
-void XMLTree::parseString(const std::string& raw_xml)
-{
-	char EXPECTING = '\0';
-	char PARSING = '\0';
-	bool __CLOSE_TAG__ = false;
-
-	XMLParserState state = IDLE;
-	uint64_t iterator = 0;
-	XMLTag* last_tag = nullptr;
-
-	std::vector<std::string> open_tags;
-
-	std::string parse_out;
-
-	char token = '\0';
-	while (iterator != raw_xml.length())
-	{
-		token = raw_xml[iterator];
-		iterator++;
-
-		switch (token)
-		{
-		case ('<'):
-			if (PARSING == 'V')
-				state = VAL_FINISHED;
-
-			EXPECTING = 'N';
-			break;
-		case ('>'):
-			if (PARSING == 'N')
-				state = NAME_FINISHED;
-			else if (EXPECTING == 'A')
-				EXPECTING = 'V';
-			else
-				state = ERROR;
-
-			break;
-		case (' '):
-
-			if (PARSING == 'N')
-				state = NAME_FINISHED;
-			else if (PARSING == 'A')
-				state = ATTR_NAME_FINISHED;
-			else if (PARSING == 'P')
-				parse_out.append(1, token);
-
-			break;
-		case ('/'):
-			if (EXPECTING == 'N' && !__CLOSE_TAG__)
-				__CLOSE_TAG__ = true;
-			else
-				state = ERROR;
-			break;
-		case ('='):
-			if (PARSING == 'A')
-				state = ATTR_NAME_FINISHED;
-			else
-				state = ERROR;
-			break;
-		case ('\"'):
-			if (EXPECTING == 'P')
-			{
-				PARSING = 'P';
-				EXPECTING = '\0';
-			}
-			else if (PARSING == 'P')
-				state = ATTR_VAL_FINISHED;
-			else
-				state = ERROR;
-
-
-			break;
-		case ('?'):
-		case ('\r'):
-		case ('\n'):
-		case ('\r\n'):
-		case ('\t'):
-			continue;
-			break;
-		default:
-			if (EXPECTING == 'N')
-			{
-				PARSING = 'N';
-				EXPECTING = '\0';
-			}
-			if (EXPECTING == 'A')
-			{
-				PARSING = 'A';
-				EXPECTING = '\0';
-			}
-			if (EXPECTING == 'V')
-			{
-				PARSING = 'V';
-				EXPECTING = '\0';
-			}
-			parse_out.append(1, token);
-			break;
-		}
-
-		switch (state)
-		{
-		case (NAME_FINISHED):
-			if (!__CLOSE_TAG__)
-			{
-				open_tags.push_back(parse_out);
-				if (last_tag == nullptr)
-					last_tag = &root_tags.emplace_back(XMLTag(parse_out));
-				else
-					last_tag = &last_tag->AddTag(parse_out);
-			}
-			else
-			{
-				if (open_tags[0] == parse_out)
-					open_tags.erase(open_tags.begin());
-				else
-					throw std::runtime_error("error with parsing XML-string");
-				try
-				{
-					last_tag = &last_tag->getParentTag();
-				}
-				catch (std::exception e)
-				{
-					last_tag = nullptr;
-				}
-				__CLOSE_TAG__ = false;
-			}
-			parse_out.clear();
-			state = IDLE;
-
-
-			EXPECTING = 'A';
-			PARSING = '\0';
-			break;
-		case (VAL_FINISHED):
-			last_tag->getValue() = std::string(parse_out);
-			parse_out.clear();
-			state = IDLE;
-
-			if (PARSING == 'V')
-				EXPECTING = 'N';
-			else
-				EXPECTING = '\0';
-			PARSING = '\0';
-			break;
-		case (ATTR_NAME_FINISHED):
-			last_tag->AddAttribute(parse_out, "");
-			parse_out.clear();
-			state = IDLE;
-			PARSING = '\0';
-			EXPECTING = 'P';
-			break;
-		case (ATTR_VAL_FINISHED):
-			last_tag->getAttributes().back().getValue() = parse_out;
-			parse_out.clear();
-			state = IDLE;
-			PARSING = '\0';
-			EXPECTING = 'A';
-			break;
-		case (ERROR):
-			throw std::runtime_error("error with parsing XML-string");
-			break;
-		}
-	}
-	if (open_tags.size() != 0)
-		throw std::runtime_error("error with parsing XML-string");
-	state = FINISHED;
-}
-std::ostream& operator<<(std::ostream& os, const XMLTree& xml)
+std::ostream& operator<<(std::ostream& os, const XMLMessage& xml)
 {
 	for (XMLTag tag : xml.root_tags)
 		os << tag;
 	return os;
 }
-XMLTree parseXMLString(const std::string& raw_xml)
-{
-	return XMLTree(raw_xml);
-}
-std::string parseXMLTree(const XMLTree& xml_tree)
-{
-	return xml_tree.toString();
-}
 ////////////////////////////////////////////////////////////
-#else
-#error XMLTree parser source-file could not compile. missing 'XMLTree.hpp'-file.
-#endif
+XMLParser::XMLParser()
+{
+
+}
+XMLMessage XMLParser::parseXMLString(const std::string& str)
+{
+	XMLMessage res;
+	RawXML raw;
+
+	raw.parseString(str);
+	raw.finalize();
+
+	std::vector<std::string> open_tags;
+	XMLTag* last_tag = nullptr;
+	for (const RawTag& rawtag : raw.tags)
+	{
+		if (rawtag._CLOSING_TAG_)
+		{
+			if (last_tag != nullptr)
+				last_tag = last_tag->getParentTag();
+			for (std::vector<std::string>::const_iterator iter = open_tags.cbegin(); iter != open_tags.cend();)
+			{
+				if ("/" +  *iter == rawtag.name)
+				{
+					iter = open_tags.erase(iter);
+					break;
+				}
+				else
+					iter++;
+			}
+			continue;
+		}
+		else if (rawtag._SELF_CLOSING_TAG_)
+		{
+			XMLTag& self_close = last_tag->AddTag(rawtag.name);
+			for (const RawAttribute& attr : rawtag.attributes)
+				self_close.AddAttribute(attr.name, attr.value);
+			continue;
+		}
+		else if (rawtag._PROC_INST_)
+		{
+			XMLTag* proc = nullptr;
+			if (last_tag != nullptr)
+				proc = &last_tag->AddTag(rawtag.name);
+			else
+				proc = &res.AddTag(rawtag.name);
+			proc->makeProcInstruction();
+			for (const RawAttribute& attr : rawtag.attributes)
+				proc->AddAttribute(attr.name, attr.value);
+			continue;
+		}
+		if (last_tag == nullptr)
+		{
+			last_tag = &res.AddTag(rawtag.name, rawtag.value);
+			open_tags.emplace_back(rawtag.name);
+			for (const RawAttribute& attr : rawtag.attributes)
+				last_tag->AddAttribute(attr.name, attr.value);
+		}
+		else
+		{
+			last_tag = &last_tag->AddTag(rawtag.name, rawtag.value);
+			open_tags.emplace_back(rawtag.name);
+			for (const RawAttribute& attr : rawtag.attributes)
+				last_tag->AddAttribute(attr.name, attr.value);
+		}
+	}
+	if (open_tags.size() != 0)
+		throw std::runtime_error("XML syntax error: couldn't find valid pair of open and close tags");
+	return res;
+}
+void XMLParser::RawTag::parseTagContent()
+{
+	bool _START_ = true;
+	bool _PROC_ = false;
+	bool _NAME_OPEN_ = false;
+
+	bool _ATT_EXPC_ = false;
+	bool _ATT_OPEN_ = false;
+
+	bool _VAL_EXPC_ = false;
+	bool _VAL_OPEN_ = false;
+
+	std::string parse_out;
+
+	for (uint64_t iterator = 0; iterator < content.size(); iterator++)
+	{
+		char token = content[iterator];
+
+		switch (token)
+		{
+		case(' '):
+			if (_VAL_OPEN_)
+				parse_out.append(1, token);
+			else if (_NAME_OPEN_)
+			{
+				_NAME_OPEN_ = false;
+				_ATT_EXPC_ = true;
+				name = parse_out;
+				parse_out.clear();
+			}
+			else if (_ATT_OPEN_)
+			{
+				_ATT_OPEN_ = false;
+				attributes.emplace_back(RawAttribute({ .name = parse_out }));
+				parse_out.clear();
+			}
+			break;
+		case ('='):
+			if (_VAL_OPEN_)
+			{
+				parse_out.append(1, token);
+			}
+			else if (!_VAL_OPEN_ && !_VAL_EXPC_)
+			{
+				_VAL_EXPC_ = true;
+				if (_ATT_OPEN_)
+				{
+					_ATT_OPEN_ = false;
+					attributes.emplace_back(RawAttribute({ .name = parse_out }));
+					parse_out.clear();
+
+				}
+			}
+			else
+				throw std::runtime_error("XML syntax error: unexpected '='");
+			break;
+		case ('"'):
+			if (_VAL_EXPC_ && !_VAL_OPEN_)
+			{
+				_VAL_EXPC_ = false;
+				_VAL_OPEN_ = true;
+			}
+			else if (!_VAL_EXPC_ && _VAL_OPEN_)
+			{
+				_VAL_OPEN_ = false;
+				_ATT_EXPC_ = true;
+				attributes.back().value = parse_out;
+				parse_out.clear();
+			}
+			else
+				throw std::runtime_error("XML syntax error: unexpected '\"'");
+			break;
+		case ('!'):
+			if (_START_ || _VAL_OPEN_)
+				parse_out.append(1, token);
+			else
+				throw std::runtime_error("XML syntax error: unexpected '!'");
+			break;
+		case ('/'):
+			if (_START_)
+			{
+				parse_out.append(1, token);
+				_CLOSING_TAG_ = true;
+			}
+			else if (_ATT_EXPC_)
+			{
+				parse_out.append(1, token);
+				_SELF_CLOSING_TAG_ = true;
+			}
+			else if (_NAME_OPEN_)
+			{
+				_NAME_OPEN_ = false;
+				_ATT_EXPC_ = true;
+				name = parse_out;
+				parse_out.clear();
+			}
+			else if (_VAL_OPEN_)
+				parse_out.append(1, token);
+			else
+				throw std::runtime_error("XML syntax error: unexpected '/'");
+			break;
+		case ('?'):
+			if (_START_)
+			{
+				_PROC_ = true;
+			}
+			else if (_PROC_ && !_VAL_OPEN_ && !_NAME_OPEN_)
+			{
+				_PROC_INST_ = true;
+				_PROC_ = false;
+			}
+			else if (_NAME_OPEN_)
+			{
+				_NAME_OPEN_ = false;
+				_ATT_EXPC_ = true;
+				_PROC_INST_ = true;
+				_PROC_ = false;
+				name = parse_out;
+				parse_out.clear();
+			}
+			else if (_VAL_OPEN_)
+				parse_out.append(1, token);
+			else
+				throw std::runtime_error("XML syntax error: unexpected '?'");
+			break;
+		default:
+			if (_START_)
+			{
+				_START_ = false;
+				_NAME_OPEN_ = true;
+			}
+			if (_ATT_EXPC_)
+			{
+				_ATT_EXPC_ = false;
+				_ATT_OPEN_ = true;
+			}
+			if (_NAME_OPEN_ || _ATT_OPEN_ || _VAL_OPEN_)
+				parse_out.append(1, token);
+			else
+				throw std::runtime_error("XML syntax error: unexpected text");
+			if (_NAME_OPEN_ && iterator == content.size() - 1)
+				name = parse_out;
+			break;
+		}
+	}
+}
+bool XMLParser::RawValue::Validate()
+{
+	if (before->name.find('/') == std::string::npos && after->name.find('/') == 0)
+	{
+		before->value = content;
+		return true;
+	}
+	else
+		return false;
+}
+void XMLParser::RawXML::parseString(const std::string& string)
+{
+	std::string parse_out;
+	bool _START_ = true;
+	bool _TAG_OPEN_ = false;
+	bool _VAL_OPEN_ = false;
+
+	for (uint64_t iterator = 0; iterator < string.size(); iterator++)
+	{
+		char token = string[iterator];
+
+		switch (token)
+		{
+		case ('<'):
+			if ((!_TAG_OPEN_ && _VAL_OPEN_) || _START_)
+			{
+				_TAG_OPEN_ = true;
+				_VAL_OPEN_ = false;
+
+				if (_START_)
+				{
+					_START_ = false;
+				}
+				else
+				{
+					values.emplace_back(RawValue({ .content = parse_out, .before = &tags.back() }));
+					parse_out.clear();
+				}
+			}
+			else
+				throw std::runtime_error("XML syntax error: unexpected '<'");
+			break;
+		case ('>'):
+			if (_TAG_OPEN_ && !_VAL_OPEN_)
+			{
+				_TAG_OPEN_ = false;
+				_VAL_OPEN_ = true;
+				tags.emplace_back(RawTag({ .content = parse_out }));
+				if (!values.empty()) values.back().after = &tags.back();
+				parse_out.clear();
+			}
+			else
+				throw std::runtime_error("XML syntax error: unexpected '>'");
+			break;
+		case(' '):
+			if (_TAG_OPEN_ || _VAL_OPEN_)
+				parse_out.append(1, token);
+			break;
+		case ('\n'):
+		case ('\r'):
+		case ('\t'):
+			continue;
+			break;
+		default:
+			if (_TAG_OPEN_ || _VAL_OPEN_)
+				parse_out.append(1, token);
+			else
+				throw std::runtime_error("XML syntax error: misplaced text");
+			break;
+		}
+	}
+}
+void XMLParser::RawXML::finalize()
+{
+	for (RawTag& tag : tags)
+		tag.parseTagContent();
+	for (std::list<RawValue>::iterator iter = values.begin(); iter != values.end();)
+	{
+		if (!iter->Validate())
+			iter = values.erase(iter);
+		else
+			iter++;
+	}
+}
 ////////////////////////////////////////////////////////////
