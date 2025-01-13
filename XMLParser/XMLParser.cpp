@@ -379,7 +379,7 @@ void XMLParser::RawTag::parseTagContent()
 				_CLOSING_TAG_ = true;
 				break;
 			case (TAG_NAME):
-				if (!_SELF_CLOSING_TAG_ && !_PROC_)
+				if (!_SELF_CLOSING_TAG_ && !_PROC_ && !_CLOSING_TAG_)
 				{
 					name = parse_out;
 					parse_out.clear();
@@ -389,7 +389,7 @@ void XMLParser::RawTag::parseTagContent()
 					throw std::runtime_error("XML syntax error: unexpected '/'");
 				break;
 			case (EXPECT_ATTRIBUTE):
-				if (!_SELF_CLOSING_TAG_ && !_PROC_)
+				if (!_SELF_CLOSING_TAG_ && !_PROC_ && !_CLOSING_TAG_)
 					_SELF_CLOSING_TAG_ = true;
 				else
 					throw std::runtime_error("XML syntax error: unexpected '/'");
