@@ -118,6 +118,7 @@ public:
 	XMLMessage parseXMLString(const std::string& str);
 
 private:
+
 	struct RawAttribute
 	{
 		std::string name;
@@ -136,6 +137,17 @@ private:
 		std::string name;
 		std::string value;
 		std::list<RawAttribute> attributes;
+
+		enum ParserState
+		{
+			START,
+			TAG_NAME,
+			EXPECT_ATTRIBUTE,
+			ATTRIBUTE_NAME,
+			EXPECT_VALUE,
+			ATTRIBUTE_VALUE,
+			END
+		};
 	};
 
 	struct RawValue
@@ -155,6 +167,14 @@ private:
 
 		std::list<RawTag> tags;
 		std::list<RawValue> values;
+
+		enum ParserState
+		{
+			START,
+			TAG,
+			VALUE,
+			END
+		};
 	};
 };
 ////////////////////////////////////////////////////////////

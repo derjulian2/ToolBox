@@ -293,16 +293,10 @@ XMLMessage XMLParser::parseXMLString(const std::string& str)
 }
 void XMLParser::RawTag::parseTagContent()
 {
-	bool _START_ = true;
 	bool _PROC_ = false;
-	bool _NAME_OPEN_ = false;
+	bool _EQUALS_ = false;
 
-	bool _ATT_EXPC_ = false;
-	bool _ATT_OPEN_ = false;
-
-	bool _VAL_EXPC_ = false;
-	bool _VAL_OPEN_ = false;
-
+	ParserState state = START;
 	std::string parse_out;
 
 	for (uint64_t iterator = 0; iterator < content.size(); iterator++)
@@ -312,133 +306,174 @@ void XMLParser::RawTag::parseTagContent()
 		switch (token)
 		{
 		case(' '):
-			if (_VAL_OPEN_)
-				parse_out.append(1, token);
-			else if (_NAME_OPEN_)
+			switch (state)
 			{
-				_NAME_OPEN_ = false;
-				_ATT_EXPC_ = true;
+			case (TAG_NAME):
+				state = EXPECT_ATTRIBUTE;
 				name = parse_out;
 				parse_out.clear();
-			}
-			else if (_ATT_OPEN_)
-			{
-				_ATT_OPEN_ = false;
+				break;
+			case (ATTRIBUTE_NAME):
+				state = EXPECT_VALUE;
 				attributes.emplace_back(RawAttribute({ .name = parse_out }));
 				parse_out.clear();
+				break;
+			case (ATTRIBUTE_VALUE):
+				parse_out.append(1, token);
+				break;
+			default:
+				continue;
+				break;
 			}
 			break;
 		case ('='):
-			if (_VAL_OPEN_)
+			switch (state)
 			{
+			case (ATTRIBUTE_NAME):
+				state = EXPECT_VALUE;
+				_EQUALS_ = true;
+				attributes.emplace_back(RawAttribute({ .name = parse_out }));
+				parse_out.clear();
+				break;
+			case (ATTRIBUTE_VALUE):
 				parse_out.append(1, token);
-			}
-			else if (!_VAL_OPEN_ && !_VAL_EXPC_)
-			{
-				_VAL_EXPC_ = true;
-				if (_ATT_OPEN_)
-				{
-					_ATT_OPEN_ = false;
-					attributes.emplace_back(RawAttribute({ .name = parse_out }));
-					parse_out.clear();
-
-				}
-			}
-			else
+				break;
+			case (EXPECT_VALUE):
+				if (!_EQUALS_)
+					_EQUALS_ = true;
+				else
+					throw std::runtime_error("XML syntax error: unexpected '='");
+				break;
+			default:
 				throw std::runtime_error("XML syntax error: unexpected '='");
+			}
 			break;
 		case ('"'):
-			if (_VAL_EXPC_ && !_VAL_OPEN_)
+			switch (state)
 			{
-				_VAL_EXPC_ = false;
-				_VAL_OPEN_ = true;
-			}
-			else if (!_VAL_EXPC_ && _VAL_OPEN_)
-			{
-				_VAL_OPEN_ = false;
-				_ATT_EXPC_ = true;
-				attributes.back().value = parse_out;
-				parse_out.clear();
-			}
-			else
+			case (EXPECT_VALUE):
+				if (_EQUALS_)
+					state = ATTRIBUTE_VALUE;
+				else
+					throw std::runtime_error("XML syntax error: unexpected '\"'");
+				break;
+			case (ATTRIBUTE_VALUE):
+				if (_EQUALS_)
+				{
+					state = EXPECT_ATTRIBUTE;
+					attributes.back().value = parse_out;
+					parse_out.clear();
+					_EQUALS_ = false;
+				}
+				else
+					throw std::runtime_error("XML syntax error: unexpected '\"'");
+				break;
+			default:
 				throw std::runtime_error("XML syntax error: unexpected '\"'");
-			break;
-		case ('!'):
-			if (_START_ || _VAL_OPEN_)
-				parse_out.append(1, token);
-			else
-				throw std::runtime_error("XML syntax error: unexpected '!'");
+				break;
+			}
 			break;
 		case ('/'):
-			if (_START_)
+			switch (state)
 			{
+			case (START):
 				parse_out.append(1, token);
 				_CLOSING_TAG_ = true;
-			}
-			else if (_ATT_EXPC_)
-			{
+				break;
+			case (TAG_NAME):
+				if (!_SELF_CLOSING_TAG_)
+				{
+					name = parse_out;
+					parse_out.clear();
+					_SELF_CLOSING_TAG_ = true;
+				}
+				else
+					throw std::runtime_error("XML syntax error: unexpected '/'");
+				break;
+			case (EXPECT_ATTRIBUTE):
+				if (!_SELF_CLOSING_TAG_)
+					_SELF_CLOSING_TAG_ = true;
+				else
+					throw std::runtime_error("XML syntax error: unexpected '/'");
+				break;
+			case (ATTRIBUTE_VALUE):
 				parse_out.append(1, token);
-				_SELF_CLOSING_TAG_ = true;
-			}
-			else if (_NAME_OPEN_)
-			{
-				_NAME_OPEN_ = false;
-				_ATT_EXPC_ = true;
-				name = parse_out;
-				parse_out.clear();
-			}
-			else if (_VAL_OPEN_)
-				parse_out.append(1, token);
-			else
+				break;
+			default:
 				throw std::runtime_error("XML syntax error: unexpected '/'");
+				break;
+			}
 			break;
 		case ('?'):
-			if (_START_)
+			switch (state)
 			{
+			case (START):
 				_PROC_ = true;
-			}
-			else if (_PROC_ && !_VAL_OPEN_ && !_NAME_OPEN_)
-			{
-				_PROC_INST_ = true;
-				_PROC_ = false;
-			}
-			else if (_NAME_OPEN_)
-			{
-				_NAME_OPEN_ = false;
-				_ATT_EXPC_ = true;
-				_PROC_INST_ = true;
-				_PROC_ = false;
-				name = parse_out;
-				parse_out.clear();
-			}
-			else if (_VAL_OPEN_)
+				break;
+			case (ATTRIBUTE_VALUE):
 				parse_out.append(1, token);
-			else
+				break;
+			case (TAG_NAME): [[fallthrough]];
+			case (EXPECT_ATTRIBUTE):
+				if (_PROC_)
+				{
+					_PROC_INST_ = true;
+					_PROC_ = false;
+				}
+				else
+					throw std::runtime_error("XML syntax error: unexpected '?'");
+				break;
+			default:
 				throw std::runtime_error("XML syntax error: unexpected '?'");
+				break;
+			}
 			break;
 		default:
-			if (_START_)
+			switch (state)
 			{
-				_START_ = false;
-				_NAME_OPEN_ = true;
-			}
-			if (_ATT_EXPC_)
-			{
-				_ATT_EXPC_ = false;
-				_ATT_OPEN_ = true;
-			}
-			if (_NAME_OPEN_ || _ATT_OPEN_ || _VAL_OPEN_)
+			case (START):
+				state = TAG_NAME;
 				parse_out.append(1, token);
-			else
+				break;
+			case (EXPECT_ATTRIBUTE):
+				state = ATTRIBUTE_NAME;
+				parse_out.append(1, token);
+				break;
+			case (TAG_NAME): [[fallthrough]];
+			case (ATTRIBUTE_NAME): [[fallthrough]];
+			case (ATTRIBUTE_VALUE):
+				parse_out.append(1, token);
+				break;
+			default:
 				throw std::runtime_error("XML syntax error: unexpected text");
-			if (_NAME_OPEN_ && iterator == content.size() - 1)
-				name = parse_out;
+				break;
+			}
 			break;
 		}
 	}
+	switch (state)
+	{
+	case (EXPECT_ATTRIBUTE):
+		state = END;
+		break;
+	case (TAG_NAME):
+		state = END;
+		name = parse_out;
+		parse_out.clear();
+		break;
+	default:
+		throw std::runtime_error("XML parser error: invalid syntax");
+		break;
+	}
+	if (_PROC_)
+		throw std::runtime_error("XML parser error: processing instruction was not closed by '?'");
+	if (_EQUALS_)
+		throw std::runtime_error("XML parser error: attribute syntax error with symbol '='");
 }
 bool XMLParser::RawValue::Validate()
 {
+	if (before == nullptr || after == nullptr)
+		return false;
 	if (before->name.find('/') == std::string::npos && after->name.find('/') == 0)
 	{
 		before->value = content;
@@ -449,10 +484,8 @@ bool XMLParser::RawValue::Validate()
 }
 void XMLParser::RawXML::parseString(const std::string& string)
 {
+	ParserState state = START;
 	std::string parse_out;
-	bool _START_ = true;
-	bool _TAG_OPEN_ = false;
-	bool _VAL_OPEN_ = false;
 
 	for (uint64_t iterator = 0; iterator < string.size(); iterator++)
 	{
@@ -461,39 +494,51 @@ void XMLParser::RawXML::parseString(const std::string& string)
 		switch (token)
 		{
 		case ('<'):
-			if ((!_TAG_OPEN_ && _VAL_OPEN_) || _START_)
+			switch (state)
 			{
-				_TAG_OPEN_ = true;
-				_VAL_OPEN_ = false;
-
-				if (_START_)
-				{
-					_START_ = false;
-				}
-				else
-				{
-					values.emplace_back(RawValue({ .content = parse_out, .before = &tags.back() }));
-					parse_out.clear();
-				}
-			}
-			else
+			case (START):
+				state = TAG;
+				break;
+			case (VALUE):
+				state = TAG;
+				values.emplace_back(RawValue({ .content = parse_out, .before = &tags.back() }));
+				parse_out.clear();
+				break;
+			default:
 				throw std::runtime_error("XML syntax error: unexpected '<'");
+				break;
+			}
 			break;
 		case ('>'):
-			if (_TAG_OPEN_ && !_VAL_OPEN_)
+			switch (state)
 			{
-				_TAG_OPEN_ = false;
-				_VAL_OPEN_ = true;
+			case (TAG):
+				state = VALUE;
 				tags.emplace_back(RawTag({ .content = parse_out }));
 				if (!values.empty()) values.back().after = &tags.back();
 				parse_out.clear();
-			}
-			else
+				break;
+			case (END):
+				continue;
+				break;
+			default:
 				throw std::runtime_error("XML syntax error: unexpected '>'");
+				break;
+			}
 			break;
 		case(' '):
-			if (_TAG_OPEN_ || _VAL_OPEN_)
+			switch (state)
+			{
+			case (TAG):
 				parse_out.append(1, token);
+				break;
+			case (VALUE):
+				parse_out.append(1, token);
+				break;
+			default:
+				continue;
+				break;
+			}
 			break;
 		case ('\n'):
 		case ('\r'):
@@ -501,12 +546,29 @@ void XMLParser::RawXML::parseString(const std::string& string)
 			continue;
 			break;
 		default:
-			if (_TAG_OPEN_ || _VAL_OPEN_)
+			switch (state)
+			{
+			case (TAG):
 				parse_out.append(1, token);
-			else
+				break;
+			case (VALUE):
+				parse_out.append(1, token);
+				break;
+			default:
 				throw std::runtime_error("XML syntax error: misplaced text");
+				break;
+			}
 			break;
 		}
+	}
+	switch (state)
+	{
+	case (VALUE):
+		state = END;
+		break;
+	default:
+		throw std::runtime_error("XML parser error: invalid syntax");
+		break;
 	}
 }
 void XMLParser::RawXML::finalize()
