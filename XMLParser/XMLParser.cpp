@@ -1,7 +1,5 @@
 ////////////////////////////////////////////////////////////
-#if __has_include("XMLParser.hpp")
 #include "XMLParser.hpp"
-#endif
 ////////////////////////////////////////////////////////////
 XMLAttribute::XMLAttribute(std::string _name, std::string _val) : name(_name), value(_val)
 {
