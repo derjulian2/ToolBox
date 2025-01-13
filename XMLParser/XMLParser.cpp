@@ -249,9 +249,13 @@ XMLMessage XMLParser::parseXMLString(const std::string& str)
 		}
 		else if (rawtag._SELF_CLOSING_TAG_)
 		{
-			XMLTag& self_close = last_tag->AddTag(rawtag.name);
+			XMLTag* self_close = nullptr;
+			if (last_tag != nullptr)
+				self_close = &last_tag->AddTag(rawtag.name);
+			else
+				self_close = &res.AddTag(rawtag.name);
 			for (const RawAttribute& attr : rawtag.attributes)
-				self_close.AddAttribute(attr.name, attr.value);
+				self_close->AddAttribute(attr.name, attr.value);
 			continue;
 		}
 		else if (rawtag._PROC_INST_)
@@ -375,7 +379,7 @@ void XMLParser::RawTag::parseTagContent()
 				_CLOSING_TAG_ = true;
 				break;
 			case (TAG_NAME):
-				if (!_SELF_CLOSING_TAG_)
+				if (!_SELF_CLOSING_TAG_ && !_PROC_)
 				{
 					name = parse_out;
 					parse_out.clear();
@@ -385,7 +389,7 @@ void XMLParser::RawTag::parseTagContent()
 					throw std::runtime_error("XML syntax error: unexpected '/'");
 				break;
 			case (EXPECT_ATTRIBUTE):
-				if (!_SELF_CLOSING_TAG_)
+				if (!_SELF_CLOSING_TAG_ && !_PROC_)
 					_SELF_CLOSING_TAG_ = true;
 				else
 					throw std::runtime_error("XML syntax error: unexpected '/'");
@@ -407,9 +411,19 @@ void XMLParser::RawTag::parseTagContent()
 			case (ATTRIBUTE_VALUE):
 				parse_out.append(1, token);
 				break;
-			case (TAG_NAME): [[fallthrough]];
+			case (TAG_NAME):
+				if (_PROC_ && !_SELF_CLOSING_TAG_)
+				{
+					name = parse_out;
+					parse_out.clear();
+					_PROC_INST_ = true;
+					_PROC_ = false;
+				}
+				else
+					throw std::runtime_error("XML syntax error: unexpected '?'");
+				break;
 			case (EXPECT_ATTRIBUTE):
-				if (_PROC_)
+				if (_PROC_ && !_SELF_CLOSING_TAG_)
 				{
 					_PROC_INST_ = true;
 					_PROC_ = false;
@@ -452,8 +466,11 @@ void XMLParser::RawTag::parseTagContent()
 		break;
 	case (TAG_NAME):
 		state = END;
-		name = parse_out;
-		parse_out.clear();
+		if (!_PROC_INST_ && !_SELF_CLOSING_TAG_)
+		{
+			name = parse_out;
+			parse_out.clear();
+		}
 		break;
 	default:
 		throw std::runtime_error("XML parser error: invalid syntax");
