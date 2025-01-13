@@ -115,9 +115,7 @@ std::ostream& operator<<(std::ostream& os, const XMLMessage& xml);
 class XMLParser
 {
 public:
-	XMLParser();
-	
-	XMLMessage parseXMLString(const std::string& str);
+	static XMLMessage parseXMLString(const std::string& str);
 
 private:
 
