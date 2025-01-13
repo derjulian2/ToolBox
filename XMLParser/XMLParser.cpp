@@ -219,10 +219,6 @@ std::ostream& operator<<(std::ostream& os, const XMLMessage& xml)
 	return os;
 }
 ////////////////////////////////////////////////////////////
-XMLParser::XMLParser()
-{
-
-}
 XMLMessage XMLParser::parseXMLString(const std::string& str)
 {
 	XMLMessage res;
