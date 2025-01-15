@@ -36,7 +36,7 @@ public:
 	void AddDefaultHelp();
 private:
 	bool terminate = false;
-	std::string dialogname;
+	std::string dialogname = "dialog";
 
 	struct CmdDialogFunction
 	{
