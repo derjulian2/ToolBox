@@ -38,10 +38,7 @@ void CmdDialog::QueryInput()
 
 	while (!terminate)
 	{
-		if (!dialogname.empty())
-			std::cout << dialogname << "> ";
-		else
-			std::cout << "dialog" << "> ";
+		std::cout << dialogname << "> ";
 		std::getline(std::cin, input);
 
 		try
