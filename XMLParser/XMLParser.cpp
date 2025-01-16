@@ -104,8 +104,9 @@ XMLTag &XMLTag::FindTag(const std::string &_name)
 	{
 		if (tag.name == _name)
 			return tag;
-		if (!tag.getSubTags().empty())
-			return tag.FindTag(_name);
+		XMLTag& res = tag.FindTag(_name);
+		if (res.name == _name)
+			return res;
 	}
 	return *this;
 }
