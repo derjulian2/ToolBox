@@ -104,9 +104,9 @@ XMLTag &XMLTag::FindTag(const std::string &_name)
 	{
 		if (tag.name == _name)
 			return tag;
-		XMLTag& res = tag.FindTag(_name);
-		if (res.name == _name)
-			return res;
+		if (!tag.subtags.empty())
+			if (XMLTag& res = tag.FindTag(_name); res.name == _name)
+				return res;
 	}
 	return *this;
 }
@@ -219,9 +219,7 @@ XMLTag &XMLMessage::FindTag(const std::string &name)
 	{
 		if (tag.getName() == name)
 			return tag;
-
-		XMLTag& res = tag.FindTag(name);
-		if (res.getName() == name)
+		if (XMLTag& res = tag.FindTag(name); res.getName() == name)
 			return res;
 	}
 	throw std::runtime_error("tag not found");
