@@ -65,7 +65,6 @@ public:
 	XMLTag& AddTag(const std::string& _name);
 	XMLTag& AddTag(const std::string& _name, const std::string& _val);
 	XMLTag& AddTag(const XMLTag& subtag);
-	XMLTag& FindTag(const std::string& _name);
 
 	XMLAttribute& AddAttribute(const std::string& _name, const std::string& _val);
 	XMLAttribute& AddAttribute(const XMLAttribute& atr);
@@ -75,7 +74,10 @@ public:
 
 	std::string toXML() const;
 private:
+	friend class XMLMessage;
 	friend std::ostream& operator<<(std::ostream& os, const XMLTag& tag);
+
+	void FindTags(const std::string& _name, std::vector<XMLTag*>& container);
 
 	std::string name;
 	std::string value;
@@ -104,7 +106,7 @@ public:
 	XMLTag& AddTag(const std::string& name);
 	XMLTag& AddTag(const std::string& name, const std::string& value);
 
-	XMLTag& FindTag(const std::string& name);
+	std::vector<XMLTag*> FindTags(const std::string& name);
 private:
 	friend std::ostream& operator<<(std::ostream& os, const XMLMessage& xml);
 

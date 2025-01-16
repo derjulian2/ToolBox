@@ -98,17 +98,15 @@ XMLTag& XMLTag::AddTag(const XMLTag& subtag)
 	value.clear();
 	return subtags.back();
 }
-XMLTag &XMLTag::FindTag(const std::string &_name)
+void XMLTag::FindTags(const std::string &_name, std::vector<XMLTag*>& container)
 {
 	for (XMLTag& tag : subtags)
 	{
 		if (tag.name == _name)
-			return tag;
+			container.emplace_back(&tag);
 		if (!tag.subtags.empty())
-			if (XMLTag& res = tag.FindTag(_name); res.name == _name)
-				return res;
+			tag.FindTags(_name, container);
 	}
-	return *this;
 }
 XMLAttribute& XMLTag::AddAttribute(const std::string& _name, const std::string& _val)
 {
@@ -213,16 +211,16 @@ XMLTag& XMLMessage::AddTag(const std::string& name, const std::string& value)
 	root_tags.push_back(XMLTag(name, value));
 	return root_tags.back();
 }
-XMLTag &XMLMessage::FindTag(const std::string &name)
+std::vector<XMLTag*> XMLMessage::FindTags(const std::string &name)
 {
+	std::vector<XMLTag*> res;
 	for (XMLTag& tag : root_tags)
 	{
 		if (tag.getName() == name)
-			return tag;
-		if (XMLTag& res = tag.FindTag(name); res.getName() == name)
-			return res;
+			res.emplace_back(&tag);
+		tag.FindTags(name, res);
 	}
-	throw std::runtime_error("tag not found");
+	return res;
 }
 std::string XMLMessage::toString() const
 {
