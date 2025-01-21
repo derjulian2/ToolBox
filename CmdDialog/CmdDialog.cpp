@@ -60,7 +60,14 @@ void CmdDialog::QueryInput()
 				{
 					if (name == func.name)
 					{
-						func.func(args.size(), args);
+						try 
+						{
+							func.func(args.size(), args);
+						}
+						catch (const std::exception& exception)
+						{
+							std::cout << "exception thrown in CmdDialogFunction: " << exception.what() << std::endl;
+						}
 						found_function = true;
 						break;
 					}
