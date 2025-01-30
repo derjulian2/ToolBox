@@ -6,18 +6,27 @@
 /// define the corresponding macros
 /// before including to activate
 /// 
-/// all modules:		#define UTIL_MOD_ALL
-/// - random			#define UTIL_MOD_RANDOM
-/// - regex and string	#define UTIL_MOD_STRINGMANIP
-/// - file operations	#define UTIL_MOD_FILEMANIP
+/// all modules:					#define UTIL_MOD_ALL
+/// - random						#define UTIL_MOD_RANDOM
+/// - timestamp						#define UTIL_MOD_TIMESTAMP
+/// - regex and string operations	#define UTIL_MOD_STRINGMANIP
+/// - file operations				#define UTIL_MOD_FILEMANIP
 ////////////////////////////////////////
 #ifndef UTIL_H
 #define UTIL_H
 ////////////////////////////////////////
+#define _CRT_SECURE_NO_WARNINGS
 #if defined(UTIL_MOD_RANDOM) || defined(UTIL_MOD_ALL)
 #include <random>
 #include <cstdint>
 #include <vector>
+#endif
+#if defined(UTIL_MOD_TIMESTAMP) || defined(UTIL_MOD_ALL)
+#include <string>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <ctime>
 #endif
 #if defined(UTIL_MOD_STRINGMANIP) || defined(UTIL_MOD_ALL)
 #include <iostream>
@@ -75,10 +84,47 @@ namespace utility
 	}
 #endif
 	////////////////////////////////////////
+	/// convenient timestamp
+	////////////////////////////////////////
+#if defined(UTIL_MOD_TIMESTAMP) || defined(UTIL_MOD_ALL)
+
+	struct Timestamp
+	{
+		inline Timestamp()
+		{
+			const std::chrono::time_point tp = std::chrono::system_clock::now();
+			count = tp.time_since_epoch().count();
+			std::time_t time_t = std::chrono::system_clock::to_time_t(tp);
+
+			std::stringstream datebuffer;
+			datebuffer << std::put_time(std::gmtime(&time_t), "%d.%m.%Y");
+			date = datebuffer.str();
+
+			std::stringstream timebuffer;
+			timebuffer << std::put_time(std::gmtime(&time_t), "%H:%M:%S");
+			time = timebuffer.str();
+
+			timestamp = date + " " + time;
+		}
+
+		static inline std::string get()
+		{
+			return Timestamp().timestamp;
+		}
+
+		std::string date;
+		std::string time;
+		std::string timestamp;
+		uint64_t count;
+	};
+
+#endif
+	////////////////////////////////////////
 	/// regex and string operations
 	/// [[TEST FOR UNDEFINED BEHAVIOUR]]
 	////////////////////////////////////////
 #if defined(UTIL_MOD_STRINGMANIP) || defined(UTIL_MOD_ALL)
+
 	struct RegexMatch
 	{
 		std::string content;
