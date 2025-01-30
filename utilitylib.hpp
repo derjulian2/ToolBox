@@ -92,8 +92,25 @@ namespace utility
 	{
 		inline Timestamp()
 		{
-			const std::chrono::time_point tp = std::chrono::system_clock::now();
-			count = tp.time_since_epoch().count();
+			std::chrono::system_clock::time_point tp = std::chrono::system_clock::now();
+			count = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
+			std::time_t time_t = std::chrono::system_clock::to_time_t(tp);
+
+			std::stringstream datebuffer;
+			datebuffer << std::put_time(std::gmtime(&time_t), "%d.%m.%Y");
+			date = datebuffer.str();
+
+			std::stringstream timebuffer;
+			timebuffer << std::put_time(std::gmtime(&time_t), "%H:%M:%S");
+			time = timebuffer.str();
+
+			timestamp = date + " " + time;
+		}
+
+		inline Timestamp(const uint64_t& time_since_epoch)
+		{
+			std::chrono::system_clock::time_point tp{ std::chrono::milliseconds{time_since_epoch} }; // initializer braces very useful here
+			count = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
 			std::time_t time_t = std::chrono::system_clock::to_time_t(tp);
 
 			std::stringstream datebuffer;
