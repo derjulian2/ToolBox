@@ -2,9 +2,9 @@
 /// general utility library
 /// for convenience methods in C++
 ////////////////////////////////////////
-/// divided into modules
+/// this single-header library is divided into modules
 /// define the corresponding macros
-/// before including to activate
+/// before including to activate the respective module
 /// 
 /// all modules:					#define UTIL_MOD_ALL
 /// - random						#define UTIL_MOD_RANDOM
