@@ -107,20 +107,36 @@ grx::VertexBuffer::VertexBuffer(VertexArray& vao, const Vertex* data, size_t siz
 }
 grx::VertexBuffer::VertexBuffer(const VertexBuffer&) noexcept
 {
+	if (vertex_buffer_handle)
+	{
+		release()
+	}
 	glGenBuffers(1, &vertex_buffer_handle);
 }
 grx::VertexBuffer::VertexBuffer(VertexBuffer&& other) noexcept
 {
+	if (vertex_buffer_handle)
+	{
+		release()
+	}
 	this->vertex_buffer_handle = other.vertex_buffer_handle;
 	other.vertex_buffer_handle = 0;
 }
 grx::VertexBuffer& grx::VertexBuffer::operator=(const VertexBuffer&) noexcept
 {
+	if (vertex_buffer_handle)
+	{
+		release()
+	}
 	glGenBuffers(1, &vertex_buffer_handle);
 	return *this;
 }
 const grx::VertexBuffer& grx::VertexBuffer::operator=(VertexBuffer&& other) noexcept
 {
+	if (vertex_buffer_handle)
+	{
+		release()
+	}
 	this->vertex_buffer_handle = other.vertex_buffer_handle;
 	other.vertex_buffer_handle = 0;
 	return *this;
