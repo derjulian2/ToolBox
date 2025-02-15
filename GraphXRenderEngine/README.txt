@@ -9,3 +9,5 @@ dependencies:
 - glfw
 - glad
 - opengl
+- glm
+- glu
