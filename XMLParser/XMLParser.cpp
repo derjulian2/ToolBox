@@ -1,96 +1,116 @@
 ////////////////////////////////////////////////////////////
 #include "XMLParser.hpp"
 ////////////////////////////////////////////////////////////
-XMLAttribute::XMLAttribute(std::string _name, std::string _val) : name(_name), value(_val)
+xmlp::XMLAttribute::XMLAttribute(std::string _name, std::string _val) : name(_name), value(_val)
 {
 
 }
-std::string XMLAttribute::getName() const
+std::string xmlp::XMLAttribute::getName() const
 {
 	return name;
 }
-void XMLAttribute::setName(const std::string& str)
+void xmlp::XMLAttribute::setName(const std::string& str)
 {
 	name = str;
 }
-std::string XMLAttribute::getValue() const
+std::string xmlp::XMLAttribute::getValue() const
 {
 	return value;
 }
-void XMLAttribute::setValue(const std::string& str)
+void xmlp::XMLAttribute::setValue(const std::string& str)
 {
 	value = str;
 }
-std::string XMLAttribute::toXML() const
+std::string xmlp::XMLAttribute::toXML() const
 {
 	return name + "=\"" + value + "\"";
 }
-std::ostream& operator<<(std::ostream& os, const XMLAttribute& atr)
+std::ostream& xmlp::operator<<(std::ostream& os, const xmlp::XMLAttribute& atr)
 {
 	os << atr.name << "='" << atr.value << "'";
 	return os;
 }
 ////////////////////////////////////////////////////////////
-XMLTag::XMLTag(const std::string& _name) : name(_name)
+xmlp::XMLTag::XMLTag(const std::string& name) : name(name)
 {
 
 }
-XMLTag::XMLTag(const std::string& _name, const std::string& _val) : name(_name), value(_val)
+xmlp::XMLTag::XMLTag(const std::string& name, const std::string& val) : name(name), value(val)
 {
 
 }
-std::string XMLTag::getName() const
+std::string xmlp::XMLTag::getName() const
 {
 	return name;
 }
-void XMLTag::setName(const std::string& str)
+void xmlp::XMLTag::setName(const std::string& str)
 {
 	name = str;
 }
-std::string XMLTag::getValue() const
+std::string xmlp::XMLTag::getValue() const
 {
 	return value;
 }
-void XMLTag::setValue(const std::string& str)
+void xmlp::XMLTag::setValue(const std::string& str)
 {
 	value = str;
 }
-std::list<XMLTag>& XMLTag::getSubTags()
+std::vector<refw(xmlp::XMLTag)> xmlp::XMLTag::getSubTags() const
 {
-	return subtags;
+	std::vector<refw(XMLTag)> res;
+	for (const XMLTag& tag : subtags)
+	{
+		res.emplace_back(const_cast<XMLTag&>(tag));
+	}
+	return res;
 }
-std::list<XMLAttribute>& XMLTag::getAttributes()
+std::vector<refw(xmlp::XMLAttribute)> xmlp::XMLTag::getAttributes() const
 {
-	return attributes;
+	std::vector<refw(XMLAttribute)> res;
+	for (const XMLAttribute& atr : attributes)
+	{
+		res.emplace_back(const_cast<XMLAttribute&>(atr));
+	}
+	return res;
 }
-void XMLTag::makeProcInstruction()
+
+void xmlp::XMLTag::setProcInstruction(bool value)
 {
-	_PROC_ = true;
-	value.clear();
-	name.insert(0, "?");
+	_PROC_ = value;
+	if (_PROC_)
+	{
+		this->value.clear();
+		name.insert(0, "?");
+	}
+	else
+	{
+		name = name.substr(name.find_first_of('?') + 1);
+	}
 }
-void XMLTag::removeProcInstruction()
+xmlp::XMLTag& xmlp::XMLTag::getParentTag() const
 {
-	_PROC_ = false;
-	name = name.substr(name.find_first_of('?') + 1);
+	if (parent != nullptr)
+	{
+		return *parent;
+	}
+	else
+	{
+		throw std::runtime_error("XMLParser error: parent tag was nullptr");
+	}
 }
-XMLTag* XMLTag::getParentTag()
-{
-	return parent;
-}
-void XMLTag::setParentTag(XMLTag& tag)
+void xmlp::XMLTag::setParentTag(XMLTag& tag)
 {
 	parent = &tag;
 }
-XMLTag& XMLTag::AddTag(const std::string& _name)
+xmlp::XMLTag& xmlp::XMLTag::AddTag(const std::string& name)
 {
-	return AddTag(XMLTag(_name));
+	return AddTag(XMLTag(name));
 }
-XMLTag& XMLTag::AddTag(const std::string& _name, const std::string& _val)
+xmlp::XMLTag& xmlp::XMLTag::AddTag(const std::string& name, const std::string& value)
 {
-	return AddTag(XMLTag(_name, _val));
+	return AddTag(XMLTag(name, value));
 }
-XMLTag& XMLTag::AddTag(const XMLTag& subtag)
+xmlp::XMLTag& xmlp::XMLTag::AddTag(const XMLTag& subtag)
 {
 	subtags.emplace_back(subtag);
 	subtags.back().depth = depth + 1;
@@ -98,46 +118,52 @@ XMLTag& XMLTag::AddTag(const XMLTag& subtag)
 	value.clear();
 	return subtags.back();
 }
-void XMLTag::FindTags(const std::string &_name, std::vector<XMLTag*>& container)
+std::vector<refw(xmlp::XMLTag)> xmlp::XMLTag::FindTags(const std::string &name) const
 {
-	for (XMLTag& tag : subtags)
+	std::vector<std::reference_wrapper<XMLTag>> res;
+	for (const XMLTag& tag : subtags)
 	{
-		if (tag.name == _name)
-			container.emplace_back(&tag);
-		if (!tag.subtags.empty())
-			tag.FindTags(_name, container);
+		if (tag.name == name)
+			res.emplace_back(const_cast<XMLTag&>(tag));
+		for (const XMLTag& subtag : tag.FindTags(name))
+		{
+			res.emplace_back(const_cast<XMLTag&>(subtag));
+		}
 	}
+	return res;
 }
-XMLAttribute& XMLTag::AddAttribute(const std::string& _name, const std::string& _val)
+xmlp::XMLAttribute& xmlp::XMLTag::AddAttribute(const std::string& _name, const std::string& _val)
 {
 	return AddAttribute(XMLAttribute(_name, _val));
 }
-XMLAttribute& XMLTag::AddAttribute(const XMLAttribute& atr)
+xmlp::XMLAttribute& xmlp::XMLTag::AddAttribute(const XMLAttribute& atr)
 {
 	attributes.emplace_back(atr);
 	return attributes.back();
 }
-std::list<XMLAttribute>& XMLTag::AddAttributes(const std::vector<std::string>& _val)
+std::vector<refw(xmlp::XMLAttribute)> xmlp::XMLTag::AddAttributes(const std::vector<std::string>& value)
 {
-	if (_val.size() % 2)
+	if (value.size() % 2)
 		throw std::runtime_error("invalid attribute input: XML-attributes always come in name-value pairs");
-	std::string temp;
-	for (uint64_t iter = 0; iter < _val.size(); iter++)
+	
+	std::vector<std::reference_wrapper<XMLAttribute>> res;
+	for (uint64_t iter = 0; iter < value.size(); iter++)
 	{
-		if (!(iter % 2))
-			temp = _val[iter];
-		else
-			AddAttribute(temp, _val[iter]);
+		if ((iter % 2))
+			res.emplace_back(AddAttribute(value[iter - 1], value[iter]));
 	}
-	return attributes;
+	return res;
 }
-std::list<XMLAttribute>& XMLTag::AddAttributes(const std::vector<XMLAttribute>& _val)
+std::vector<refw(xmlp::XMLAttribute)> xmlp::XMLTag::AddAttributes(const std::vector<XMLAttribute>& value)
 {
-	for (const XMLAttribute& attr : _val)
-		AddAttribute(attr);
-	return attributes;
+	std::vector<std::reference_wrapper<XMLAttribute>> res;
+	for (const XMLAttribute& attr : value)
+	{
+		res.emplace_back(AddAttribute(attr));
+	}
+	return res;
 }
-std::string XMLTag::toXML() const
+std::string xmlp::XMLTag::toXML() const
 {
 	std::stringstream res;
 	// print depth indentation
@@ -173,7 +199,7 @@ std::string XMLTag::toXML() const
 		res << '<' << '/' << name << '>';
 	return res.str();
 }
-std::ostream& operator<<(std::ostream& os, const XMLTag& tag)
+std::ostream& xmlp::operator<<(std::ostream& os, const XMLTag& tag)
 {
 	if (tag.attributes.size() != 0)
 	{
@@ -197,50 +223,53 @@ std::ostream& operator<<(std::ostream& os, const XMLTag& tag)
 	return os;
 }
 ////////////////////////////////////////////////////////////
-XMLMessage::XMLMessage()
+xmlp::XMLMessage::XMLMessage()
 {
 
 }
-XMLTag& XMLMessage::AddTag(const std::string& name)
+xmlp::XMLTag& xmlp::XMLMessage::AddTag(const std::string& name)
 {
 	root_tags.push_back(XMLTag(name));
 	return root_tags.back();
 }
-XMLTag& XMLMessage::AddTag(const std::string& name, const std::string& value)
+xmlp::XMLTag& xmlp::XMLMessage::AddTag(const std::string& name, const std::string& value)
 {
 	root_tags.push_back(XMLTag(name, value));
 	return root_tags.back();
 }
-std::vector<XMLTag*> XMLMessage::FindTags(const std::string &name)
+std::vector<refw(xmlp::XMLTag)> xmlp::XMLMessage::FindTags(const std::string &name) const
 {
-	std::vector<XMLTag*> res;
-	for (XMLTag& tag : root_tags)
+	std::vector<std::reference_wrapper<XMLTag>> res;
+	for (const XMLTag& tag : root_tags)
 	{
 		if (tag.getName() == name)
-			res.emplace_back(&tag);
-		tag.FindTags(name, res);
+			res.emplace_back(const_cast<XMLTag&>(tag));
+		for (const XMLTag& subtag : tag.FindTags(name))
+		{
+			res.emplace_back(const_cast<XMLTag&>(subtag));
+		}
 	}
 	return res;
 }
-std::string XMLMessage::toString() const
+std::string xmlp::XMLMessage::toString() const
 {
 	std::stringstream res;
 	for (const XMLTag& tag : root_tags)
 		res << tag.toXML();
 	return res.str();
 }
-XMLMessage::operator std::string() const
+xmlp::XMLMessage::operator std::string() const
 {
 	return toString();
 }
-std::ostream& operator<<(std::ostream& os, const XMLMessage& xml)
+std::ostream& xmlp::operator<<(std::ostream& os, const XMLMessage& xml)
 {
 	for (XMLTag tag : xml.root_tags)
 		os << tag;
 	return os;
 }
 ////////////////////////////////////////////////////////////
-XMLMessage XMLParser::parseXMLString(const std::string& str)
+xmlp::XMLMessage xmlp::XMLParser::parseXMLString(const std::string& str)
 {
 	XMLMessage res;
 	RawXML raw;
@@ -255,7 +284,16 @@ XMLMessage XMLParser::parseXMLString(const std::string& str)
 		if (rawtag._CLOSING_TAG_)
 		{
 			if (last_tag != nullptr)
-				last_tag = last_tag->getParentTag();
+			{
+				try
+				{
+					last_tag = &last_tag->getParentTag();
+				}
+				catch (std::exception& exc)
+				{
+					last_tag = nullptr;
+				}
+			}
 			for (std::vector<std::string>::const_iterator iter = open_tags.cbegin(); iter != open_tags.cend();)
 			{
 				if ("/" +  *iter == rawtag.name)
@@ -286,7 +324,7 @@ XMLMessage XMLParser::parseXMLString(const std::string& str)
 				proc = &last_tag->AddTag(rawtag.name);
 			else
 				proc = &res.AddTag(rawtag.name);
-			proc->makeProcInstruction();
+			proc->setProcInstruction(true);
 			for (const RawAttribute& attr : rawtag.attributes)
 				proc->AddAttribute(attr.name, attr.value);
 			continue;
@@ -310,7 +348,7 @@ XMLMessage XMLParser::parseXMLString(const std::string& str)
 		throw std::runtime_error("XML syntax error: couldn't find valid pair of open and close tags");
 	return res;
 }
-void XMLParser::RawTag::parseTagContent()
+void xmlp::XMLParser::RawTag::parseTagContent()
 {
 	bool _PROC_ = false;
 	bool _EQUALS_ = false;
@@ -502,7 +540,7 @@ void XMLParser::RawTag::parseTagContent()
 	if (_EQUALS_)
 		throw std::runtime_error("XML parser error: attribute syntax error with symbol '='");
 }
-bool XMLParser::RawValue::Validate()
+bool xmlp::XMLParser::RawValue::Validate()
 {
 	if (before == nullptr || after == nullptr)
 		return false;
@@ -514,7 +552,7 @@ bool XMLParser::RawValue::Validate()
 	else
 		return false;
 }
-void XMLParser::RawXML::parseString(const std::string& string)
+void xmlp::XMLParser::RawXML::parseString(const std::string& string)
 {
 	ParserState state = START;
 	std::string parse_out;
@@ -603,7 +641,7 @@ void XMLParser::RawXML::parseString(const std::string& string)
 		break;
 	}
 }
-void XMLParser::RawXML::finalize()
+void xmlp::XMLParser::RawXML::finalize()
 {
 	for (RawTag& tag : tags)
 		tag.parseTagContent();
