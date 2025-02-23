@@ -8,7 +8,7 @@
 //////////////////////////////////////////////////
 /*
 * PointerList to manage pointers to polymorphic types. intends to make runtime-type-polymorphism easier to use.
-* effectively, this container entangles an object on the stack with a pointer in a list.
+* effectively, this container tries to safely entangle an object on the stack with a pointer in a list.
 *
 * if you need list of pointers to many polymorphic types
 * and you need to ensure memory safety (regarding copy, move and destruction operations) around that type and the
