@@ -8,8 +8,9 @@
 #include <memory>
 //////////////////////////////////////////////////
 /*
-* container structure to handle polymorphic types
-* via standard-library smart-pointers
+* std::vector wrapper to handle polymorphic types
+* via standard-library smart-pointers (with added 
+* constraints and copying features)
 * 
 * always copies the passed object into the heap
 * using 'std::make_shared<_Ty>(obj)'
@@ -27,12 +28,12 @@
 */
 //////////////////////////////////////////////////
 #define POLYMORPHIC_CLONE_BASE(base)						\
-virtual inline std::shared_ptr<base> clone() const = 0;
+virtual inline std::unique_ptr<base> clone() const = 0;
 //////////////////////////////////////////////////
 #define POLYMORPHIC_CLONE_DERIVED(base, derived)			\
-virtual inline std::shared_ptr<base> clone() const override	\
+virtual inline std::unique_ptr<base> clone() const override	\
 {															\
-	return std::make_shared<derived>(*this);				\
+	return std::make_unique<derived>(*this);				\
 }
 //////////////////////////////////////////////////
 
@@ -61,20 +62,20 @@ public:
 	template <CloneableAndDerived<Ty> _Ty>
 	void push_back(const _Ty&);
 
-	typedef std::vector<std::shared_ptr<Ty>>::iterator iterator;
+	typedef std::vector<std::unique_ptr<Ty>>::iterator iterator;
 
 	iterator begin();
 	iterator end();
-	std::shared_ptr<Ty>& at(uint64_t);
-	std::shared_ptr<Ty>& operator[](uint64_t);
-	std::shared_ptr<Ty>& front();
-	std::shared_ptr<Ty>& back();
+	Ty& at(uint64_t);
+	Ty& operator[](uint64_t);
+	Ty& front();
+	Ty& back();
 	iterator erase(iterator);
 	void clear();
 	size_t size() const;
 
 private:
-	std::vector<std::shared_ptr<Ty>> internal_vec;
+	std::vector<std::unique_ptr<Ty>> internal_vec;
 };
 
 //////////////////////////////////////////////////

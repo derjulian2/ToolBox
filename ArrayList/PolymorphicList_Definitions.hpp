@@ -3,7 +3,7 @@
 template <Cloneable Ty>
 PolymorphicList<Ty>::PolymorphicList(const PolymorphicList<Ty>& other) noexcept
 {
-	for (std::shared_ptr<Ty> ptr : other.internal_vec)
+	for (const std::unique_ptr<Ty>& ptr : other.internal_vec)
 	{
 		this->internal_vec.emplace_back(ptr->clone());
 	}
@@ -17,7 +17,7 @@ PolymorphicList<Ty>::PolymorphicList(PolymorphicList<Ty>&& other) noexcept
 template <Cloneable Ty>
 PolymorphicList<Ty>& PolymorphicList<Ty>::operator=(const PolymorphicList& other) noexcept
 {
-	for (std::shared_ptr<Ty> ptr : other.internal_vec)
+	for (const std::unique_ptr<Ty>& ptr : other.internal_vec)
 	{
 		this->internal_vec.emplace_back(ptr->clone());
 	}
@@ -35,7 +35,7 @@ template <Cloneable Ty>
 template <CloneableAndDerived<Ty> _Ty>
 void PolymorphicList<Ty>::push_back(const _Ty& elem)
 {
-	internal_vec.emplace_back(std::make_shared<_Ty>(elem));
+	internal_vec.emplace_back(std::make_unique<_Ty>(elem));
 }
 
 template <Cloneable Ty>
@@ -51,7 +51,7 @@ PolymorphicList<Ty>::iterator PolymorphicList<Ty>::end()
 }
 
 template <Cloneable Ty>
-std::shared_ptr<Ty>& PolymorphicList<Ty>::at(uint64_t index)
+Ty& PolymorphicList<Ty>::at(uint64_t index)
 {
 	if (index >= size())
 	{
@@ -59,18 +59,18 @@ std::shared_ptr<Ty>& PolymorphicList<Ty>::at(uint64_t index)
 	}
 	else
 	{
-		return internal_vec[index];
+		return *internal_vec[index];
 	}
 }
 
 template <Cloneable Ty>
-std::shared_ptr<Ty>& PolymorphicList<Ty>::operator[](uint64_t index)
+Ty& PolymorphicList<Ty>::operator[](uint64_t index)
 {
 	return at(index);
 }
 
 template <Cloneable Ty>
-std::shared_ptr<Ty>& PolymorphicList<Ty>::front()
+Ty& PolymorphicList<Ty>::front()
 {
 	if (size())
 	{
@@ -79,7 +79,7 @@ std::shared_ptr<Ty>& PolymorphicList<Ty>::front()
 }
 
 template <Cloneable Ty>
-std::shared_ptr<Ty>& PolymorphicList<Ty>::back()
+Ty& PolymorphicList<Ty>::back()
 {
 	if (size())
 	{
