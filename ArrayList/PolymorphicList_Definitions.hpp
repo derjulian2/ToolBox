@@ -1,23 +1,29 @@
 //////////////////////////////////////////////////
 
-template <typename Ty>
+template <Cloneable Ty>
 PolymorphicList<Ty>::PolymorphicList(const PolymorphicList<Ty>& other) noexcept
 {
-	this->internal_vec = other.internal_vec;
+	for (std::shared_ptr<Ty> ptr : other.internal_vec)
+	{
+		this->internal_vec.emplace_back(ptr->clone());
+	}
 }
-template <typename Ty>
+template <Cloneable Ty>
 PolymorphicList<Ty>::PolymorphicList(PolymorphicList<Ty>&& other) noexcept
 {
 	this->internal_vec = other.internal_vec;
 	other.internal_vec.clear();
 }
-template <typename Ty>
+template <Cloneable Ty>
 PolymorphicList<Ty>& PolymorphicList<Ty>::operator=(const PolymorphicList& other) noexcept
 {
-	this->internal_vec = other.internal_vec;
+	for (std::shared_ptr<Ty> ptr : other.internal_vec)
+	{
+		this->internal_vec.emplace_back(ptr->clone());
+	}
 	return *this;
 }
-template <typename Ty>
+template <Cloneable Ty>
 PolymorphicList<Ty>& PolymorphicList<Ty>::operator=(PolymorphicList&& other) noexcept
 {
 	this->internal_vec = other.internal_vec;
@@ -25,26 +31,26 @@ PolymorphicList<Ty>& PolymorphicList<Ty>::operator=(PolymorphicList&& other) noe
 	return *this;
 }
 
-template <typename Ty>
-template <std::derived_from<Ty> _Ty>
-void PolymorphicList<Ty>::push_back(_Ty& elem)
+template <Cloneable Ty>
+template <CloneableAndDerived<Ty> _Ty>
+void PolymorphicList<Ty>::push_back(const _Ty& elem)
 {
 	internal_vec.emplace_back(std::make_shared<_Ty>(elem));
 }
 
-template <typename Ty>
+template <Cloneable Ty>
 PolymorphicList<Ty>::iterator PolymorphicList<Ty>::begin()
 {
 	return internal_vec.begin();
 }
 
-template <typename Ty>
+template <Cloneable Ty>
 PolymorphicList<Ty>::iterator PolymorphicList<Ty>::end()
 {
 	return internal_vec.end();
 }
 
-template <typename Ty>
+template <Cloneable Ty>
 std::shared_ptr<Ty>& PolymorphicList<Ty>::at(uint64_t index)
 {
 	if (index >= size())
@@ -57,13 +63,13 @@ std::shared_ptr<Ty>& PolymorphicList<Ty>::at(uint64_t index)
 	}
 }
 
-template <typename Ty>
+template <Cloneable Ty>
 std::shared_ptr<Ty>& PolymorphicList<Ty>::operator[](uint64_t index)
 {
 	return at(index);
 }
 
-template <typename Ty>
+template <Cloneable Ty>
 std::shared_ptr<Ty>& PolymorphicList<Ty>::front()
 {
 	if (size())
@@ -72,7 +78,7 @@ std::shared_ptr<Ty>& PolymorphicList<Ty>::front()
 	}
 }
 
-template <typename Ty>
+template <Cloneable Ty>
 std::shared_ptr<Ty>& PolymorphicList<Ty>::back()
 {
 	if (size())
@@ -81,19 +87,19 @@ std::shared_ptr<Ty>& PolymorphicList<Ty>::back()
 	}
 }
 
-template <typename Ty>
+template <Cloneable Ty>
 PolymorphicList<Ty>::iterator PolymorphicList<Ty>::erase(PolymorphicList<Ty>::iterator where)
 {
 	return internal_vec.erase(where);
 }
 
-template <typename Ty>
+template <Cloneable Ty>
 void PolymorphicList<Ty>::clear()
 {
 	internal_vec.clear();
 }
 
-template <typename Ty>
+template <Cloneable Ty>
 size_t PolymorphicList<Ty>::size() const
 {
 	return internal_vec.size();
