@@ -28,7 +28,7 @@
 */
 //////////////////////////////////////////////////
 #define POLYMORPHIC_CLONE_BASE(base)						\
-virtual inline std::unique_ptr<base> clone() const = 0;
+virtual std::unique_ptr<base> clone() const = 0;
 //////////////////////////////////////////////////
 #define POLYMORPHIC_CLONE_DERIVED(base, derived)			\
 virtual inline std::unique_ptr<base> clone() const override	\
