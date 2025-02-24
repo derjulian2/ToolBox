@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////
 
-template <Cloneable Ty>
+template <typename Ty>
 PolymorphicList<Ty>::PolymorphicList(const PolymorphicList<Ty>& other) noexcept
 {
 	for (const std::unique_ptr<Ty>& ptr : other.internal_vec)
@@ -8,13 +8,13 @@ PolymorphicList<Ty>::PolymorphicList(const PolymorphicList<Ty>& other) noexcept
 		this->internal_vec.emplace_back(ptr->clone());
 	}
 }
-template <Cloneable Ty>
+template <typename Ty>
 PolymorphicList<Ty>::PolymorphicList(PolymorphicList<Ty>&& other) noexcept
 {
 	this->internal_vec = other.internal_vec;
 	other.internal_vec.clear();
 }
-template <Cloneable Ty>
+template <typename Ty>
 PolymorphicList<Ty>& PolymorphicList<Ty>::operator=(const PolymorphicList& other) noexcept
 {
 	for (const std::unique_ptr<Ty>& ptr : other.internal_vec)
@@ -23,7 +23,7 @@ PolymorphicList<Ty>& PolymorphicList<Ty>::operator=(const PolymorphicList& other
 	}
 	return *this;
 }
-template <Cloneable Ty>
+template <typename Ty>
 PolymorphicList<Ty>& PolymorphicList<Ty>::operator=(PolymorphicList&& other) noexcept
 {
 	this->internal_vec = other.internal_vec;
@@ -31,26 +31,26 @@ PolymorphicList<Ty>& PolymorphicList<Ty>::operator=(PolymorphicList&& other) noe
 	return *this;
 }
 
-template <Cloneable Ty>
-template <CloneableAndDerived<Ty> _Ty>
+template <typename Ty>
+template <std::derived_from<Ty> _Ty>
 void PolymorphicList<Ty>::push_back(const _Ty& elem)
 {
 	internal_vec.emplace_back(std::make_unique<_Ty>(elem));
 }
 
-template <Cloneable Ty>
+template <typename Ty>
 PolymorphicList<Ty>::iterator PolymorphicList<Ty>::begin()
 {
 	return internal_vec.begin();
 }
 
-template <Cloneable Ty>
+template <typename Ty>
 PolymorphicList<Ty>::iterator PolymorphicList<Ty>::end()
 {
 	return internal_vec.end();
 }
 
-template <Cloneable Ty>
+template <typename Ty>
 Ty& PolymorphicList<Ty>::at(uint64_t index)
 {
 	if (index >= size())
@@ -63,13 +63,13 @@ Ty& PolymorphicList<Ty>::at(uint64_t index)
 	}
 }
 
-template <Cloneable Ty>
+template <typename Ty>
 Ty& PolymorphicList<Ty>::operator[](uint64_t index)
 {
 	return at(index);
 }
 
-template <Cloneable Ty>
+template <typename Ty>
 Ty& PolymorphicList<Ty>::front()
 {
 	if (size())
@@ -78,7 +78,7 @@ Ty& PolymorphicList<Ty>::front()
 	}
 }
 
-template <Cloneable Ty>
+template <typename Ty>
 Ty& PolymorphicList<Ty>::back()
 {
 	if (size())
@@ -87,19 +87,19 @@ Ty& PolymorphicList<Ty>::back()
 	}
 }
 
-template <Cloneable Ty>
+template <typename Ty>
 PolymorphicList<Ty>::iterator PolymorphicList<Ty>::erase(PolymorphicList<Ty>::iterator where)
 {
 	return internal_vec.erase(where);
 }
 
-template <Cloneable Ty>
+template <typename Ty>
 void PolymorphicList<Ty>::clear()
 {
 	internal_vec.clear();
 }
 
-template <Cloneable Ty>
+template <typename Ty>
 size_t PolymorphicList<Ty>::size() const
 {
 	return internal_vec.size();
