@@ -21,8 +21,8 @@
 * you need to define a clone() function for
 * the PolymorphicList to call later.
 * 
-* expand the predefined macro using your types to
-* easily add it in. it needs to be placed in your 
+* expand the predefined macros into your types to
+* easily add it in. the macro needs to be placed in your 
 * polymorphic classes at public access specifier.
 * 
 * this clone() needs to be overriden in every derived class.
