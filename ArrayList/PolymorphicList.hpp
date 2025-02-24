@@ -6,6 +6,7 @@
 #include <concepts>
 #include <vector>
 #include <memory>
+#include <stdexcept>
 //////////////////////////////////////////////////
 /*
 * 
