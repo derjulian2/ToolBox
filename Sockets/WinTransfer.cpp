@@ -1,4 +1,4 @@
-#include "WinTransfer.h"
+#include "WinTransfer.hpp"
 
 bool wtr::NetworkStartup()
 {
@@ -95,7 +95,7 @@ bool wtr::ServerSocket::Accept()
     }
 }
 
-bool wtr::ServerSocket::SendString(const std::string& str)
+bool wtr::ServerSocket::Send(const std::string& str)
 {
     if (status != CONNECTED)
     {
@@ -113,27 +113,27 @@ bool wtr::ServerSocket::SendString(const std::string& str)
         return true;
     }
 }
-bool wtr::ServerSocket::SendFile(const std::filesystem::path& path)
+
+bool wtr::ServerSocket::Receive(std::string& dest, bool large_buf)
 {
     if (status != CONNECTED)
     {
         return false;
     }
 
-
-    return true;
-}
-bool wtr::ServerSocket::Receive(std::string& dest)
-{
-    if (status != CONNECTED)
-    {
-        return false;
-    }
-
+    int64_t rec_bytecount = NULL;
     dest.clear();
-    dest.reserve(RECEIVE_BUFFER_LEN);
+    if (large_buf)
+    {
+        dest.reserve(RECEIVE_BUFFER_FILE_LEN);
+        rec_bytecount = recv(accept_socket, dest.data(), RECEIVE_BUFFER_FILE_LEN, 0);
+    }
+    else
+    {
+        dest.reserve(RECEIVE_BUFFER_MSG_LEN);
+        rec_bytecount = recv(accept_socket, dest.data(), RECEIVE_BUFFER_MSG_LEN, 0);
+    }
 
-    int64_t rec_bytecount = recv(accept_socket, dest.data(), RECEIVE_BUFFER_LEN, 0);
     if (rec_bytecount < 0)
     {
         log.append("server-socket receive error: " + std::to_string(WSAGetLastError()) + "\n");
@@ -142,6 +142,7 @@ bool wtr::ServerSocket::Receive(std::string& dest)
     else
     {
         log.append("server-socket received " + std::to_string(rec_bytecount) + " bytes");
+        dest.shrink_to_fit();
         return true;
     }
 }
@@ -229,7 +230,7 @@ bool wtr::ClientSocket::Close()
     return false;
 }
 
-bool wtr::ClientSocket::SendString(const std::string& str)
+bool wtr::ClientSocket::Send(const std::string& str)
 {
     if (status != CONNECTED)
     {
@@ -247,27 +248,26 @@ bool wtr::ClientSocket::SendString(const std::string& str)
         return true;
     }
 }
-bool wtr::ClientSocket::SendFile(const std::filesystem::path& path)
+bool wtr::ClientSocket::Receive(std::string& dest, bool large_buf)
 {
     if (status != CONNECTED)
     {
         return false;
     }
 
-
-    return true;
-}
-bool wtr::ClientSocket::Receive(std::string& dest)
-{
-    if (status != CONNECTED)
-    {
-        return false;
-    }
-
+    int64_t rec_bytecount = NULL;
     dest.clear();
-    dest.reserve(RECEIVE_BUFFER_LEN);
-
-    int64_t rec_bytecount = recv(client_socket, dest.data(), RECEIVE_BUFFER_LEN, 0);
+    if (large_buf)
+    {
+        dest.reserve(RECEIVE_BUFFER_FILE_LEN);
+        rec_bytecount = recv(client_socket, dest.data(), RECEIVE_BUFFER_FILE_LEN, 0);
+    }
+    else
+    {
+        dest.reserve(RECEIVE_BUFFER_MSG_LEN);
+        rec_bytecount = recv(client_socket, dest.data(), RECEIVE_BUFFER_MSG_LEN, 0);
+    }
+    
     if (rec_bytecount < 0)
     {
         log.append("client-socket receive error: " + std::to_string(WSAGetLastError()) + "\n");
