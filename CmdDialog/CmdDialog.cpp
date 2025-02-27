@@ -1,121 +1,105 @@
 ////////////////////////////////////////
 #include "CmdDialog.hpp"
 ////////////////////////////////////////
-CmdDialogFlags operator|(const CmdDialogFlags& f, const CmdDialogFlags& v)
+cmd::DialogFlags cmd::operator|(const DialogFlags& f, const DialogFlags& v)
 {
-	return static_cast<CmdDialogFlags>(static_cast<long>(f) | static_cast<long>(v));
+	return static_cast<DialogFlags>(static_cast<long>(f) | static_cast<long>(v));
 }
 
-CmdDialog::CmdDialog()
-{
-
-}
-
-CmdDialog::CmdDialog(const std::string& name) : dialogname(name)
-{
-
-}
-
-CmdDialog::CmdDialog(const CmdDialogFlags& flags)
+cmd::Dialog::Dialog(const std::string& name, const DialogFlags& flags) : dialogname(name)
 {
 	if ((flags & 0b1))
-		AddDefaultQuit();
+	{
+		AddFunction("q", [this](const ArgCount&, const Arguments&) { this->close(); }, "default generated quit function - terminates the dialog", { "[none]" });
+		AddFunction("quit", [this](const ArgCount&, const Arguments&) { this->close(); }, "default generated quit function - terminates the dialog", { "[none]" });
+	}
 	if (((flags >> 1) & 0b1))
-		AddDefaultHelp();
+	{
+		AddFunction("h", [this](const ArgCount&, const Arguments&) { PrintHelp(); }, "default generated help function - shows this function listing", { "[none]" });
+		AddFunction("help", [this](const ArgCount&, const Arguments&) { PrintHelp(); }, "default generated help function - shows this function listing", { "[none]" });
+	}
 }
 
-CmdDialog::CmdDialog(const std::string& name, const CmdDialogFlags& flags) : dialogname(name)
+void cmd::Dialog::AddFunction(const std::string& name, 
+	const std::function<void(const ArgCount&, const Arguments&)>& func,
+	const std::string& description,
+	const Arguments& expected_arguments)
 {
-	if ((flags & 0b1))
-		AddDefaultQuit();
-	if (((flags >> 1) & 0b1))
-		AddDefaultHelp();
+	functions.emplace_back(DialogFunction({
+		.name = name,
+		.description = description,
+		.expected_arguments = expected_arguments,
+		.func = func
+		}));
 }
 
-void CmdDialog::QueryInput()
+void cmd::Dialog::query(std::ostream& out, std::istream& in)
 {
 	std::string input;
+	terminate_dialog = false;
 
-	while (!terminate)
+	while (!terminate_dialog)
 	{
-		std::cout << dialogname << "> ";
-		std::getline(std::cin, input);
+		out << dialogname << "> ";
+		std::getline(in, input);
 
-		try
+
+		std::vector<std::string> input_parsed = utility::split_string(input, " ");
+
+		if (input_parsed.empty() && !input.empty())
 		{
-			std::vector<std::string> input_parsed = parseInput(input);
+			input_parsed.emplace_back(input);
+		}
+
+		if (!input_parsed.empty())
+		{
+			std::string name = input_parsed[0];
+			cmd::Arguments args;
+
+			input_parsed.erase(input_parsed.begin());
 
 			if (!input_parsed.empty())
 			{
-				std::string name = input_parsed[0];
-				Arguments args;
+				args = input_parsed;
+			}
 
-				input_parsed.erase(input_parsed.begin());
-				
-				if (!input_parsed.empty())
-					args = input_parsed;
-
-				bool found_function = false;
-				for (const CmdDialogFunction& func : functions)
+			bool found_function = false;
+			for (const DialogFunction& func : functions)
+			{
+				if (name == func.name)
 				{
-					if (name == func.name)
+					try
 					{
-						try 
+						if (func.func)
 						{
 							func.func(args.size(), args);
 						}
-						catch (const std::exception& exception)
-						{
-							std::cout << "exception thrown in CmdDialogFunction: " << exception.what() << std::endl;
-						}
-						found_function = true;
-						break;
 					}
+					catch (const std::exception& exception)
+					{
+						out << "error in DialogFunction: " << func.name << " : " << exception.what() << std::endl;
+					}
+					found_function = true;
+					break;
 				}
-				if (!found_function)
-					std::cout << "no matching function found: '" << name << "'" << std::endl;
 			}
-		}
-		catch (const std::exception& e)
-		{
-			std::cout << "Exception thrown: " << e.what() << std::endl;
+			if (!found_function)
+			{
+				out << "no matching function found: '" << name << "'" << std::endl;
+			}
 		}
 	}
 }
 
-void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::function<void(const ArgCount&, const Arguments&)>& func)
+void cmd::Dialog::close()
 {
-	functions.emplace_back(CmdDialogFunction({.name = name, .func = func}));
-}
-void CmdDialog::AddCmdDialogFunction(const std::string& name, const Arguments& expected_arguments, const std::function<void(const ArgCount&, const Arguments&)>& func)
-{
-	functions.emplace_back(CmdDialogFunction({.name = name, .expected_arguments = expected_arguments, .func = func}));
-}
-void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::string& description, const std::function<void(const ArgCount&, const Arguments&)>& func)
-{
-	functions.emplace_back(CmdDialogFunction({.name = name, .description = description, .func = func}));
-}
-void CmdDialog::AddCmdDialogFunction(const std::string& name, const std::string& description, const Arguments& expected_arguments, const std::function<void(const ArgCount&, const Arguments&)>& func)
-{
-	functions.emplace_back(CmdDialogFunction({.name = name,.description = description, .expected_arguments = expected_arguments, .func = func}));
+	terminate_dialog = true;
 }
 
-void CmdDialog::AddDefaultQuit()
-{
-	AddCmdDialogFunction("q", "default generated quit function - terminates the dialog", [this](const ArgCount&, const Arguments&) {terminate = true; });
-	AddCmdDialogFunction("quit", "default generated quit function - terminates the dialog", [this](const ArgCount&, const Arguments&) {terminate = true; });
-}
-
-void CmdDialog::AddDefaultHelp()
-{
-	AddCmdDialogFunction("h", "default generated help function - shows this function listing", [this](const ArgCount&, const Arguments&) { PrintHelp(); });
-	AddCmdDialogFunction("help", "default generated help function - shows this function listing", [this](const ArgCount&, const Arguments&) { PrintHelp(); });
-}
-
-void CmdDialog::PrintHelp()
+void cmd::Dialog::PrintHelp()
 {
 	std::cout << dialogname << " - function listing\n";
-	for (const CmdDialogFunction& func : functions)
+	for (const DialogFunction& func : functions)
 	{
 		std::cout << " -" << func.name;
         if (!func.expected_arguments.empty())
@@ -135,43 +119,64 @@ void CmdDialog::PrintHelp()
 		std::cout << std::endl;
 	}
 }
-
-std::vector<std::string> CmdDialog::parseInput(const std::string& input)
+////////////////////////////////////////
+cmd::YesNoAll::YesNoAll(
+	const std::string& message,
+	std::function<void(void)> onYes,
+	std::function<void(void)> onNo,
+	std::function<void(void)> onAll
+)	: message(message), onYes(onYes), onNo(onNo), onAll(onAll)
 {
-	uint64_t iterator = 0;
-	std::vector<std::string> res;
-	std::string parse_out;
-	bool FINISHED_WORD_FLAG = false;
-	bool READING_FLAG = false;
 
-	while (iterator < input.length())
+}
+void cmd::YesNoAll::query(std::ostream& out, std::istream& in)
+{
+	bool terminate_dialog = false;
+	std::string input;
+
+	while (!terminate_dialog)
 	{
-		char token = input.at(iterator);
-		iterator++;
-
-		switch (token)
+		out << message << " [y/n";
+		if (onAll)
 		{
-		case(' '):
-			if (READING_FLAG)
-				FINISHED_WORD_FLAG = true;
-			break;
-		default:
-			READING_FLAG = true;
-			parse_out.append(1, token);
-			if (iterator == input.length())
-				FINISHED_WORD_FLAG = true;
-			break;
+			out << "/a";
 		}
+		out << "] ";
+		std::getline(in, input);
 
-		if (FINISHED_WORD_FLAG)
+		try
 		{
-			res.emplace_back(parse_out);
-			parse_out.clear();
-			READING_FLAG = false;
-			FINISHED_WORD_FLAG = false;
+			if (utility::touppercase(input) == "Y" || utility::touppercase(input) == "YES")
+			{
+				onYes();
+				terminate_dialog = true;
+			}
+			else if (utility::touppercase(input) == "N" || utility::touppercase(input) == "NO")
+			{
+				onNo();
+				terminate_dialog = true;
+			}
+			else if (utility::touppercase(input) == "A" || utility::touppercase(input) == "ALL")
+			{
+				if (onAll)
+				{
+					onAll();
+					terminate_dialog = true;
+				}
+				else
+				{
+					throw std::runtime_error("");
+				}
+			}
+			else
+			{
+				throw std::runtime_error("");
+			}
+		}
+		catch (const std::exception& e)
+		{
+			out << "invalid input" << std::endl;
 		}
 	}
-
-	return res;
 }
 ////////////////////////////////////////
