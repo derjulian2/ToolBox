@@ -9,7 +9,8 @@
 /// all modules:					#define UTIL_MOD_ALL
 /// - random						#define UTIL_MOD_RANDOM
 /// - timestamp						#define UTIL_MOD_TIMESTAMP
-/// - regex and string operations	#define UTIL_MOD_STRINGMANIP
+/// - string operations				#define UTIL_MOD_STRINGMANIP
+/// - regex operations				#define UTIL_MOD_REGEX
 /// - file operations				#define UTIL_MOD_FILEMANIP
 ////////////////////////////////////////
 #ifndef UTIL_H
@@ -31,6 +32,11 @@
 #if defined(UTIL_MOD_STRINGMANIP) || defined(UTIL_MOD_ALL)
 #include <iostream>
 #include <string>
+#include <concepts>
+#endif
+#if defined(UTIL_MOD_REGEX) || defined(UTIL_MOD_ALL)
+#include <iostream>
+#include <string>
 #include <regex>
 #include <concepts>
 #endif
@@ -42,10 +48,13 @@
 ////////////////////////////////////////
 namespace utility
 {
+
 	////////////////////////////////////////
 	/// random number generation
 	////////////////////////////////////////
+
 #if defined(UTIL_MOD_RANDOM) || defined(UTIL_MOD_ALL)
+
 	static inline uint64_t randint(uint64_t lower_range, uint64_t upper_range)
 	{
 		if (upper_range < lower_range)
@@ -82,10 +91,14 @@ namespace utility
 		}
 		return res;
 	}
+
 #endif
+
 	////////////////////////////////////////
-	/// convenient timestamp
+	/// convenience timestamp
+	/// [[remove gmtime() because deprecated]]
 	////////////////////////////////////////
+
 #if defined(UTIL_MOD_TIMESTAMP) || defined(UTIL_MOD_ALL)
 
 	struct Timestamp
@@ -136,68 +149,12 @@ namespace utility
 	};
 
 #endif
+
 	////////////////////////////////////////
-	/// regex and string operations
-	/// [[TEST FOR UNDEFINED BEHAVIOUR]]
+	/// to_string utility
 	////////////////////////////////////////
-#if defined(UTIL_MOD_STRINGMANIP) || defined(UTIL_MOD_ALL)
 
-	struct RegexMatch
-	{
-		std::string content;
-		std::string::const_iterator iter;
-		size_t length;
-		size_t index;
-	};
-
-	static inline std::vector<RegexMatch> get_matches(const std::string& input, const std::regex& regex)
-	{
-		std::vector<RegexMatch> res;
-		std::smatch matches;
-
-		std::string::const_iterator start = input.cbegin();
-		while (std::regex_search(start, input.cend(), matches, regex))
-		{
-			for (std::smatch::const_iterator it = matches.cbegin(); it != matches.cend(); it++)
-			{
-				RegexMatch match = {
-					.content = *it,
-					.iter = matches.suffix().first,
-					.length = static_cast<size_t>((*it).length()),
-					.index = static_cast<size_t>(std::distance(input.cbegin(), matches.suffix().first))
-				};
-				res.emplace_back(match);
-			}
-			start = matches.suffix().first;
-		}
-
-		return res;
-	}
-
-	static inline std::vector<std::string> split_string(const std::string& input, const std::regex& regex)
-	{
-		std::vector<std::string> res;
-
-		std::vector<RegexMatch> matches = get_matches(input, regex);
-		RegexMatch last_match = { "", {}, NULL, NULL };
-
-		if (matches.empty())
-			return res;
-
-		for (size_t i = 0; i < matches.size(); i++)
-		{
-			if (matches[i].index != last_match.index + last_match.length)
-				res.emplace_back(input.substr(i == 0 ? 0 : last_match.index + last_match.length - 1,  matches[i].index - last_match.index - 1));
-			last_match = matches[i];
-		}
-		res.emplace_back(input.substr(last_match.index + last_match.length - 1, input.npos));
-		return res;
-	}
-
-	static inline std::vector<std::string> split_string(const std::string& input, const std::string& regex)
-	{
-		return split_string(input, std::regex(regex));
-	}
+#if defined(UTIL_MOD_STRINGMANIP) || defined(UTIL_MOD_REGEX) || defined(UTIL_MOD_ALL)
 
 	template <typename T>
 	concept Printable = requires(const T & elem)
@@ -219,11 +176,196 @@ namespace utility
 		res << " ]";
 		return res.str();
 	}
+
 #endif
+
+	////////////////////////////////////////
+	/// string operations
+	/// [[TEST FOR UNDEFINED BEHAVIOUR]]
+	////////////////////////////////////////
+
+#if defined(UTIL_MOD_STRINGMANIP) || defined(UTIL_MOD_REGEX) || defined(UTIL_MOD_ALL)
+
+	/*
+	* considers a string empty if it does not contain any alphanumerical values or special characters
+	* (e.g. only whitespace or special ascii characters)
+	*/
+	static inline bool isempty(const std::string& str)
+	{
+		for (char c : str)
+		{
+			if (c >= 33 && c <= 126)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	static inline void clear_empty_strings(std::vector<std::string>& vec)
+	{
+		for (std::vector<std::string>::iterator iter = vec.begin(); iter != vec.end();)
+		{
+			if (isempty(*iter))
+			{
+				iter = vec.erase(iter);
+			}
+			else
+			{
+				iter++;
+			}
+		}
+	}
+
+	static inline std::string tolowercase(const std::string& str)
+	{
+		std::string res;
+		for (char c : str)
+		{
+			res.append(1, std::tolower(c));
+		}
+		return res;
+	}
+
+	static inline std::string touppercase(const std::string& str)
+	{
+		std::string res;
+		for (char c : str)
+		{
+			res.append(1, std::toupper(c));
+		}
+		return res;
+	}
+
+	static inline std::vector<std::string> split_string(const std::string& input, const std::string& split, bool no_empty_strings = true)
+	{
+		std::vector<std::string> res;
+		size_t index = 0;
+
+		// find possible split-spots
+		std::vector<size_t> indices;
+		while ((index = input.find(split, index)) != std::string::npos)
+		{
+			indices.emplace_back(index);
+			index += split.length();
+		}
+		if (!indices.size())
+		{
+			return res;
+		}
+
+		// get regions between split-spots
+		for (uint64_t i = 0; i < indices.size(); i++)
+		{
+			if (!i)
+			{
+				if (indices[i]) // account for case that 'split' is at the front
+				{
+					res.emplace_back(input.substr(0, indices[i]));
+				}
+			}
+			else
+			{
+				res.emplace_back(input.substr(indices[i - 1] + split.length(), indices[i] - (indices[i - 1] + split.length())));
+			}
+		}
+		if (indices.back() + split.length() < input.length()) // account for case that 'split' is at the end
+		{
+			res.emplace_back(input.substr(indices.back() + split.length(), input.length() - indices.back()));
+		}
+
+		// clear possible empty strings
+		if (no_empty_strings)
+		{
+			clear_empty_strings(res);
+		}
+		return res;
+	}
+
+#endif
+
+	////////////////////////////////////////
+	/// regex operations
+	/// [[TEST FOR UNDEFINED BEHAVIOUR]]
+	////////////////////////////////////////
+
+#if defined(UTIL_MOD_REGEX) || defined(UTIL_MOD_ALL)
+
+	struct RegexMatch
+	{
+		std::string content;
+		size_t length;
+		size_t index;
+	};
+
+	static inline std::vector<RegexMatch> get_matches(const std::string& input, const std::regex& regex)
+	{
+		std::vector<RegexMatch> res;
+		std::smatch matches;
+
+		std::string::const_iterator start = input.cbegin();
+		while (std::regex_search(start, input.cend(), matches, regex))
+		{
+			for (std::smatch::iterator iter = matches.cbegin(); iter != matches.cend(); iter++)
+			{
+				RegexMatch match;
+				match.content = iter->str();
+				match.index = std::distance(input.cbegin(), iter->first);
+				match.length = iter->length();
+				res.emplace_back(match);
+			}
+			start = matches.suffix().first;
+		}
+
+		return res;
+	}
+
+	static inline std::vector<std::string> split_string(const std::string& input, const std::regex& regex, bool no_empty_strings = true)
+	{
+		std::vector<std::string> res;
+
+		// find possible split-spots
+		std::vector<RegexMatch> matches = get_matches(input, regex);
+		if (matches.empty())
+			return res;
+
+		// get regions between split-spots
+		for (uint64_t i = 0; i < matches.size(); i++)
+		{
+			if (!i)
+			{
+				if (matches[i].index) // account for case that 'regex' is at the front
+				{
+					res.emplace_back(input.substr(0, matches[i].index));
+				}
+			}
+			else
+			{
+				res.emplace_back(input.substr(matches[i - 1].index + matches[i - 1].length, matches[i].index - (matches[i - 1].index + matches[i - 1].length)));
+			}
+		}
+		if (matches.back().index + matches.back().length < input.length()) // account for case that 'regex' is at the end
+		{
+			res.emplace_back(input.substr(matches.back().index + matches.back().length, input.length() - matches.back().index));
+		}
+
+		// clear possible empty strings
+		if (no_empty_strings)
+		{
+			clear_empty_strings(res);
+		}
+
+		return res;
+	}
+
+#endif 
+
 	////////////////////////////////////////
 	/// file input/output and manipulation
 	////////////////////////////////////////
+
 #if defined(UTIL_MOD_FILEMANIP) || defined(UTIL_MOD_ALL)
+
 	static inline bool readfile(const std::filesystem::path& path, std::string& contents_out)
 	{
 		try
@@ -300,7 +442,9 @@ namespace utility
 		}
 		return true;
 	}
+
 #endif
+
 }
 ////////////////////////////////////////
 #endif
