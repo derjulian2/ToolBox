@@ -1,5 +1,6 @@
+//////////////////////////////////////////////////
 #include "WinTransfer.hpp"
-
+//////////////////////////////////////////////////
 bool wtr::NetworkStartup()
 {
     WSAData wsa_data = {};
@@ -16,366 +17,594 @@ void wtr::NetworkCleanup()
 {
     WSACleanup();
 }
-std::string wtr::getLocalIpv4Address()
+bool wtr::getLocalIpv4Address(std::string& outbuf)
 {
-    char buf[1024];
-    if (gethostname(buf, sizeof(buf)) == SOCKET_ERROR)
+    // mixing C and C++ code, maybe not good
+    PIP_ADAPTER_INFO pAdapterInfo = static_cast<IP_ADAPTER_INFO*>(malloc(sizeof(IP_ADAPTER_INFO)));
+    ULONG ulOutBufLen = sizeof(IP_ADAPTER_INFO);
+
+    bool res = false;
+
+    if (GetAdaptersInfo(pAdapterInfo, &ulOutBufLen) == NO_ERROR)
     {
-        throw std::runtime_error("could not determine local hostname");
-    }
-    
-    unsigned char b1 = 0, b2 = 0, b3 = 0, b4 = 0;
-
-    hostent* host = gethostbyname(buf);
-    if (!host)
-    {
-        throw std::runtime_error("could not determine local ip address");
-    }
-
-    b1 = reinterpret_cast<in_addr*>(host->h_addr)->S_un.S_un_b.s_b1;
-    b2 = reinterpret_cast<in_addr*>(host->h_addr)->S_un.S_un_b.s_b2;
-    b3 = reinterpret_cast<in_addr*>(host->h_addr)->S_un.S_un_b.s_b3;
-    b4 = reinterpret_cast<in_addr*>(host->h_addr)->S_un.S_un_b.s_b4;
-
-    return std::to_string(b1) + "." + std::to_string(b2) + "." + std::to_string(b3) + "." + std::to_string(b4);
-}
-
-wtr::ServerSocket::~ServerSocket()
-{
-    Close();
-}
-
-bool wtr::ServerSocket::Open()
-{
-    server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (server_socket == INVALID_SOCKET)
-    {
-        log.append("socket-initialization failed with error code: " + std::to_string(WSAGetLastError()) + "\n");
-        return false;
-    }
-    else
-    {
-        log.append("socket-initialization OK\n");
-        status = OPEN;
-        return true;
-    }
-}
-bool wtr::ServerSocket::Close()
-{
-    if (status != BAD)
-    {
-        if (server_socket != INVALID_SOCKET)
+        if (pAdapterInfo)
         {
-            closesocket(server_socket);
-            server_socket = INVALID_SOCKET;
-        }
-        if (accept_socket != INVALID_SOCKET)
-        {
-            closesocket(accept_socket);
-            accept_socket = INVALID_SOCKET;
-        }
-        status = BAD;
-        return true;
-    }
-    return false;
-}
-
-
-bool wtr::ServerSocket::Listen(const std::string& ip_address, uint64_t port)
-{
-    if (status != OPEN)
-    {
-        return false;
-    }
-
-    sockaddr_in addr_info = sockaddr_in();
-    addr_info.sin_family = AF_INET;
-    addr_info.sin_addr.S_un.S_addr = inet_addr(ip_address.c_str());
-    addr_info.sin_port = htons(port);
-
-    if (bind(server_socket, reinterpret_cast<sockaddr*>(&addr_info), sizeof(addr_info)) == SOCKET_ERROR)
-    {
-        log.append("error binding socket: " + std::to_string(WSAGetLastError()) + "\n");
-        Close();
-        return false;
-    }
-    else
-    {
-        if (port)
-        {
-            this->port = port;
+            outbuf = std::string(pAdapterInfo->IpAddressList.IpAddress.String);
+            res = true;
         }
         else
         {
-            int32_t addrlen = sizeof(addr_info);
-            if (getsockname(server_socket, (sockaddr*)&addr_info, &addrlen) == SOCKET_ERROR)
-            {
-                log.append("error with getting dynamically chosen port: " + std::to_string(WSAGetLastError()) + "\n");
-                Close();
-                return false;
-            }
-            else
-            {
-                int32_t local_port = ntohs(addr_info.sin_port);
-                this->port = local_port;
-            }
+            res = false;
         }
-        this->ip_address = ip_address;
-        log.append("socket-binding OK\n");
-        log.append("server-socket bound to " + ip_address + " at port " + std::to_string(port) + "\n");
-    }
-
-    if (listen(server_socket, 1) == SOCKET_ERROR)
-    {
-        log.append("error listening on socket: " + std::to_string(WSAGetLastError()) + "\n");
-        Close();
-        return false;
     }
     else
     {
-        log.append("listening for new connections...\n");
-        status = LISTENING;
-        return true;
+        res = false;
     }
+    
+    free(pAdapterInfo);
+    pAdapterInfo = nullptr;
+
+    return res;
 }
-bool wtr::ServerSocket::Accept()
+//////////////////////////////////////////////////
+wtr::SocketServer::~SocketServer()
 {
-    if (status != LISTENING)
+    Shutdown();
+}
+bool wtr::SocketServer::Startup(const std::string& ip_address, uint16_t port)
+{
+    addrinfo hints{};
+    addrinfo* result = nullptr;
+    int error = 0;
+
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_flags = AI_PASSIVE;
+        
+    error = getaddrinfo(ip_address.c_str(), std::to_string(port).c_str(), &hints, &result);
+    if (error != NO_ERROR)
     {
+        Log("server startup failed at getaddrinfo() with error: " + std::to_string(error));
+        return false;
+    }
+   
+    server_socket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, 0, 0, 0);
+    if (server_socket == INVALID_SOCKET)
+    {
+        Log("server startup failed at socket() with error: " + std::to_string(WSAGetLastError()));
+        if (result)
+        {
+            freeaddrinfo(result);
+            result = nullptr;
+        }
+        Shutdown();
+        return false;
+    }
+    if (ioctlsocket(server_socket, FIONBIO, &blocking) == SOCKET_ERROR)
+    {
+        Log("server startup failed at ioctlsocket() with error: " + std::to_string(WSAGetLastError()));
+        if (result)
+        {
+            freeaddrinfo(result);
+            result = nullptr;
+        }
+        Shutdown();
         return false;
     }
 
-    accept_socket = accept(server_socket, nullptr, nullptr);
-
-    if (accept_socket == INVALID_SOCKET)
+    error = bind(server_socket, result->ai_addr, result->ai_addrlen);
+    if (error == SOCKET_ERROR)
     {
-        log.append("error on accepting socket: " + std::to_string(WSAGetLastError()) + "\n");
-        status = BAD;
+        Log("server startup failed at bind() with error: " + std::to_string(WSAGetLastError()));
+        if (result)
+        {
+            freeaddrinfo(result);
+            result = nullptr;
+        }
+        Shutdown();
         return false;
+    }
+
+    error = listen(server_socket, SOMAXCONN);
+    if (error == SOCKET_ERROR)
+    {
+        Log("server startup failed at listen() with error: " + std::to_string(WSAGetLastError()));
+        if (result)
+        {
+            freeaddrinfo(result);
+            result = nullptr;
+        }
+        Shutdown();
+        return false;
+    }
+
+    if (port == 0)
+    {
+        sockaddr_in addr_info{};
+        int namelen = sizeof(sockaddr_in);
+        if (getsockname(server_socket, reinterpret_cast<sockaddr*>(&addr_info), &namelen) == SOCKET_ERROR)
+        {
+            Log("server startup failed at getsockname() with error: " + std::to_string(WSAGetLastError()));
+            if (result)
+            {
+                freeaddrinfo(result);
+                result = nullptr;
+            }
+            Shutdown();
+            return false;
+        }
+        this->port = ntohs(addr_info.sin_port);
     }
     else
     {
-        log.append("connection OK\n");
-        status = CONNECTED;
-        return true;
+        this->port = port;
     }
+    this->ip_address = ip_address;
+
+    if (result)
+    {
+        freeaddrinfo(result);
+        result = nullptr;
+    }
+    Log("server startup successful. listening for incoming clients at " + this->ip_address + " on port " + std::to_string(this->port));
+    online = true;
+    return true;
 }
-
-
-bool wtr::ServerSocket::Send(const std::string& str)
+void wtr::SocketServer::Shutdown()
 {
-    if (status != CONNECTED)
+    if (online)
+    {
+        if (client_socket != INVALID_SOCKET)
+        {
+            shutdown(client_socket, SD_BOTH);
+            closesocket(client_socket);
+            client_socket = INVALID_SOCKET;
+        }
+        if (server_socket != INVALID_SOCKET)
+        {
+            shutdown(server_socket, SD_BOTH);
+            closesocket(server_socket);
+            server_socket = INVALID_SOCKET;
+        }
+    }
+    online = false;
+}
+bool wtr::SocketServer::AcceptClient()
+{
+    if (!online)
     {
         return false;
     }
-    int64_t send_bytecount = send(accept_socket, str.c_str(), str.length(), 0);
-    if (send_bytecount == SOCKET_ERROR)
-    {
-        log.append("server-socket send error: " + std::to_string(WSAGetLastError()) + "\n");
-        return false;
-    }
-    else
-    {
-        log.append("server-socket sent " + std::to_string(send_bytecount) + " bytes");
-        return true;
-    }
-}
-bool wtr::ServerSocket::Receive(std::string& dest, bool large_buf)
-{
-    if (status != CONNECTED)
-    {
-        return false;
-    }
 
-    int64_t rec_bytecount = NULL;
-    dest.clear();
-
-    char* buffer = nullptr;
-    if (large_buf)
-    {
-        buffer = new char[RECEIVE_BUFFER_FILE_LEN];
-        std::fill(&buffer[0], &buffer[RECEIVE_BUFFER_FILE_LEN - 1], 0);
-        rec_bytecount = recv(accept_socket, buffer, RECEIVE_BUFFER_FILE_LEN, 0);
-    }
-    else
-    {
-        buffer = new char[RECEIVE_BUFFER_MSG_LEN];
-        std::fill(&buffer[0], &buffer[RECEIVE_BUFFER_MSG_LEN - 1], 0);
-        rec_bytecount = recv(accept_socket, buffer, RECEIVE_BUFFER_MSG_LEN, 0);
-    }
-    if (rec_bytecount < 0)
-    {
-        log.append("client-socket receive error: " + std::to_string(WSAGetLastError()) + "\n");
-        return false;
-    }
-    else
-    {
-        log.append("client-socket received " + std::to_string(rec_bytecount) + " bytes");
-        dest.append(buffer);
-        dest.shrink_to_fit();
-        return true;
-    }
-    if (buffer)
-    {
-        delete[] buffer;
-    }
-}
-
-
-std::string wtr::ServerSocket::getLog() const
-{
-    return log;
-}
-wtr::ServerSocket::Status wtr::ServerSocket::getStatus() const
-{
-    return status;
-}
-std::string wtr::ServerSocket::getIp() const
-{
-    return ip_address;
-}
-uint32_t wtr::ServerSocket::getPort() const
-{
-    return port;
-}
-
-
-wtr::ClientSocket::~ClientSocket()
-{
-    Close();
-}
-
-bool wtr::ClientSocket::Open()
-{
-    client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    client_socket = accept(server_socket, NULL, NULL);
 
     if (client_socket == INVALID_SOCKET)
     {
-        log.append("socket-initialization failed with error code: " + std::to_string(WSAGetLastError()) + "\n");
+        Log("server could not accept incoming client");
+        return false;
+    }
+    if (ioctlsocket(client_socket, FIONBIO, &blocking) == SOCKET_ERROR)
+    {
+        Log("server could not accept incoming client");
+        return false;
+    }
+
+    Log("server accepted new client connection");
+    return true;
+}
+bool wtr::SocketServer::Send(const std::string& str)
+{
+    if (!online || client_socket == INVALID_SOCKET)
+    {
+        return false;
+    }
+
+    int error = send(client_socket, str.c_str(), str.size(), 0);
+    if (error == SOCKET_ERROR)
+    {
+        Log("failed to send " + std::to_string(str.size()) + " bytes");
         return false;
     }
     else
     {
-        log.append("socket-initialization OK\n");
-        status = OPEN;
+        Log("sent " + std::to_string(str.size()) + " bytes");
         return true;
     }
 }
-bool wtr::ClientSocket::Close()
+int wtr::SocketServer::Receive(std::string& out, bool largebuf)
 {
-    if (status != BAD)
+    if (!online)
     {
-        closesocket(client_socket);
-        status = BAD;
-        return true;
+        return -1; // error
+    }
+    char* receive_buf = nullptr;
+    long length = 0;
+    if (largebuf)
+    {
+        receive_buf = new char[RECEIVE_BUFFER_FILE_LEN];
+        length = RECEIVE_BUFFER_FILE_LEN;
+        std::fill(&receive_buf[0], &receive_buf[RECEIVE_BUFFER_FILE_LEN - 1], 0);
+    }
+    else
+    {
+        receive_buf = new char[RECEIVE_BUFFER_MSG_LEN];
+        length = RECEIVE_BUFFER_MSG_LEN;
+        std::fill(&receive_buf[0], &receive_buf[RECEIVE_BUFFER_MSG_LEN - 1], 0);
+    }
+
+    int error = recv(client_socket, receive_buf, length, 0);
+    if (error == SOCKET_ERROR)
+    {
+        Log("failed to receive message from server");
+        if (receive_buf)
+        {
+            delete[] receive_buf;
+        }
+        return -1; // error
+    }
+    else if (error > 0)
+    {
+        if (receive_buf)
+        {
+            std::string temp;
+            temp.append(receive_buf);
+            temp.shrink_to_fit();
+            out.append(temp);
+            std::fill(&receive_buf[0], &receive_buf[length - 1], 0);
+            Log("received " + std::to_string(temp.size()) + " bytes");
+        }
+        if (receive_buf)
+        {
+            delete[] receive_buf;
+        }
+        return 1; // data received
+    }
+    else if (error == 0)
+    {
+        Log("connection has been closed");
+        if (receive_buf)
+        {
+            delete[] receive_buf;
+        }
+        return 0; // connection has been closed
+    }
+}
+bool wtr::SocketServer::DataReceived() const
+{
+    if (client_socket == INVALID_SOCKET)
+    {
+        return false;
+    }
+
+    fd_set rfd;
+    FD_ZERO(&rfd);
+    FD_SET(client_socket, &rfd);
+
+    int ret = select(client_socket, &rfd, 0, 0, 0);
+
+    if (rfd.fd_count)
+    {
+        if (FD_ISSET(client_socket, &rfd))
+        {
+            return true;
+        }
     }
     return false;
 }
-
-
-bool wtr::ClientSocket::Connect(const std::string& ip_address, uint64_t port)
+bool wtr::SocketServer::ClientCanRead() const
 {
-    if (status != OPEN)
+    if (client_socket == INVALID_SOCKET)
     {
         return false;
     }
 
-    sockaddr_in addr_info = sockaddr_in();
-    addr_info.sin_family = AF_INET;
-    addr_info.sin_addr.S_un.S_addr = inet_addr(ip_address.c_str());
-    addr_info.sin_port = htons(port);
+    fd_set wfd;
+    FD_ZERO(&wfd);
+    FD_SET(client_socket, &wfd);
 
-    if (connect(client_socket, reinterpret_cast<sockaddr*>(&addr_info), sizeof(addr_info)) == SOCKET_ERROR)
+    int ret = select(client_socket, 0, &wfd, 0, 0);
+
+    if (wfd.fd_count)
     {
-        log.append("error connecting socket: " + std::to_string(WSAGetLastError()) + "\n");
-        Close();
-        return false;
+        if (FD_ISSET(client_socket, &wfd))
+        {
+            return true;
+        }
     }
-    else
-    {
-        this->ip_address = ip_address;
-        this->port = port;
-        log.append("connection OK\n");
-        log.append("client-socket bound to " + ip_address + " at port " + std::to_string(port) + "\n");
-        status = CONNECTED;
-    }
+    return false;
 }
-
-
-bool wtr::ClientSocket::Send(const std::string& str)
+std::string wtr::SocketServer::getLastLog() const
 {
-    if (status != CONNECTED)
-    {
-        return false;
-    }
-    int64_t send_bytecount = send(client_socket, str.c_str(), str.length(), 0);
-    if (send_bytecount == SOCKET_ERROR)
-    {
-        log.append("client-socket send error: " + std::to_string(WSAGetLastError()) + "\n");
-        return false;
-    }
-    else
-    {
-        log.append("client-socket sent " + std::to_string(send_bytecount) + " bytes");
-        return true;
-    }
+    return last_log;
 }
-bool wtr::ClientSocket::Receive(std::string& dest, bool large_buf)
-{
-    if (status != CONNECTED)
-    {
-        return false;
-    }
-
-    int64_t rec_bytecount = NULL;
-    dest.clear();
-
-    char* buffer = nullptr;
-    if (large_buf)
-    {
-        buffer = new char[RECEIVE_BUFFER_FILE_LEN];
-        std::fill(&buffer[0], &buffer[RECEIVE_BUFFER_FILE_LEN - 1], 0);
-        rec_bytecount = recv(client_socket, buffer, RECEIVE_BUFFER_FILE_LEN, 0);
-    }
-    else
-    {
-        buffer = new char[RECEIVE_BUFFER_MSG_LEN];
-        std::fill(&buffer[0], &buffer[RECEIVE_BUFFER_MSG_LEN - 1], 0);
-        rec_bytecount = recv(client_socket, buffer, RECEIVE_BUFFER_MSG_LEN, 0);
-    } 
-    if (rec_bytecount < 0)
-    {
-        log.append("client-socket receive error: " + std::to_string(WSAGetLastError()) + "\n");
-        return false;
-    }
-    else
-    {
-        log.append("client-socket received " + std::to_string(rec_bytecount) + " bytes");
-        dest.append(buffer);
-        dest.shrink_to_fit();
-        return true;
-    }
-    if (buffer)
-    {
-        delete[] buffer;
-    }
-}
-
-
-std::string wtr::ClientSocket::getLog() const
+std::string wtr::SocketServer::getLog() const
 {
     return log;
 }
-wtr::ClientSocket::Status wtr::ClientSocket::getStatus() const
-{
-    return status;
-}
-std::string wtr::ClientSocket::getIp() const
+std::string wtr::SocketServer::getIp() const
 {
     return ip_address;
 }
-uint32_t wtr::ClientSocket::getPort() const
+uint16_t wtr::SocketServer::getPort() const
 {
     return port;
 }
+std::string wtr::SocketServer::getClientInfo() const
+{
+    if (!online)
+    {
+        return std::string("no client information available, server is offline");
+    }
+
+    std::string res = "client information: \n";
+    sockaddr_in addr_info{};
+    int namelen = sizeof(sockaddr_in);
+    if (getsockname(client_socket, reinterpret_cast<sockaddr*>(&addr_info), &namelen) == SOCKET_ERROR)
+    {
+        res.append("no information available");
+    }
+    else
+    {
+        res.append(" family: " + std::to_string(addr_info.sin_family));
+        res.append(", address: " + 
+            std::to_string(addr_info.sin_addr.S_un.S_un_b.s_b1) + "." +
+            std::to_string(addr_info.sin_addr.S_un.S_un_b.s_b2) + "." +
+            std::to_string(addr_info.sin_addr.S_un.S_un_b.s_b3) + "." +
+            std::to_string(addr_info.sin_addr.S_un.S_un_b.s_b4));
+        res.append(", port: " + std::to_string(addr_info.sin_port));
+    }
+    res.append("\n");
+    return res;
+}
+bool wtr::SocketServer::isOnline() const
+{
+    return online;
+}
+bool wtr::SocketServer::isConnected() const
+{
+    if (client_socket == INVALID_SOCKET)
+    {
+        return false;
+    }
+    return true;
+}
+
+void wtr::SocketServer::Log(const std::string& str)
+{
+    log.append("<" + utility::Timestamp::get() + "> " + str + "\n");
+    last_log = str;
+}
+//////////////////////////////////////////////////
+wtr::SocketClient::~SocketClient()
+{
+    Shutdown();
+}
+bool wtr::SocketClient::Connect(const std::string& ip_address, uint32_t port)
+{
+    addrinfo hints{};
+    addrinfo* result = nullptr;
+    int error = 0;
+
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    error = getaddrinfo(ip_address.c_str(), std::to_string(port).c_str(), &hints, &result);
+    if (error != NO_ERROR)
+    {
+        Log("server connection failed at getaddrinfo() with error: " + std::to_string(error));
+        return false;
+    }
+
+    client_socket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+    if (client_socket == INVALID_SOCKET)
+    {
+        Log("client connection failed at socket() with error code: " + std::to_string(WSAGetLastError()));
+        if (result)
+        {
+            freeaddrinfo(result);
+            result = nullptr;
+        }
+        Shutdown();
+        return false;
+    }
+
+    if (ioctlsocket(client_socket, FIONBIO, &blocking) == SOCKET_ERROR)
+    {
+        Log("client connection failed at ioctlsocket() with error code: " + std::to_string(WSAGetLastError()));
+        if (result)
+        {
+            freeaddrinfo(result);
+            result = nullptr;
+        }
+        Shutdown();
+        return false;
+    }
+
+    error = connect(client_socket, result->ai_addr, result->ai_addrlen);
+    if (error == SOCKET_ERROR)
+    {
+        if (WSAGetLastError() != WSAEWOULDBLOCK)
+        {
+            Log("client connection failed at connect() with error code: " + std::to_string(WSAGetLastError()));
+            if (result)
+            {
+                freeaddrinfo(result);
+                result = nullptr;
+            }
+            Shutdown();
+            return false;
+        }
+    }
+
+    if (result)
+    {
+        freeaddrinfo(result);
+        result = nullptr;
+    }
+    connected = true;
+    return true;
+}
+void wtr::SocketClient::Shutdown()
+{
+    if (connected)
+    {
+        if (client_socket != INVALID_SOCKET)
+        {
+            shutdown(client_socket, SD_BOTH);
+            closesocket(client_socket);
+            client_socket = INVALID_SOCKET;
+        }
+    }
+    connected = false;
+}
+bool wtr::SocketClient::Send(const std::string& str)
+{
+    if (!connected)
+    {
+        return false;
+    }
+
+    int error = send(client_socket, str.c_str(), str.size(), 0);
+    if (error == SOCKET_ERROR)
+    {
+        Log("failed to send " + std::to_string(str.size()) + " bytes");
+        return false;
+    }
+    else
+    {
+        Log("sent " + std::to_string(str.size()) + " bytes");
+        return true;
+    }
+}
+int wtr::SocketClient::Receive(std::string& out, bool largebuf)
+{
+    if (!connected)
+    {
+        return -1;
+    }
+    char* receive_buf = nullptr;
+    long length = 0;
+    if (largebuf)
+    {
+        receive_buf = new char[RECEIVE_BUFFER_FILE_LEN];
+        length = RECEIVE_BUFFER_FILE_LEN;
+        std::fill(&receive_buf[0], &receive_buf[RECEIVE_BUFFER_FILE_LEN - 1], 0);
+    }
+    else
+    {
+        receive_buf = new char[RECEIVE_BUFFER_MSG_LEN];
+        length = RECEIVE_BUFFER_MSG_LEN;
+        std::fill(&receive_buf[0], &receive_buf[RECEIVE_BUFFER_MSG_LEN - 1], 0);
+    }
+
+    int error = recv(client_socket, receive_buf, length, 0);
+    if (error == SOCKET_ERROR)
+    {
+        Log("failed to receive message from server");
+        if (receive_buf)
+        {
+            delete[] receive_buf;
+        }
+        return -1;
+    }
+    else if (error > 0)
+    {
+        if (receive_buf)
+        {
+            std::string temp;
+            temp.append(receive_buf);
+            temp.shrink_to_fit();
+            out.append(temp);
+            std::fill(&receive_buf[0], &receive_buf[length - 1], 0);
+            Log("received " + std::to_string(temp.size()) + " bytes");
+            if (receive_buf)
+            {
+                delete[] receive_buf;
+            }
+            return 1; // data received
+        }
+    }
+    else if (error == 0)
+    {
+        Log("connection has been closed");
+        if (receive_buf)
+        {
+            delete[] receive_buf;
+        }
+        return 0; // connection has been closed
+    }
+}
+bool wtr::SocketClient::DataReceived() const
+{
+    if (!connected)
+    {
+        return false;
+    }
+
+    fd_set rfd;
+    FD_ZERO(&rfd);
+    FD_SET(client_socket, &rfd);
+
+
+    int ret = select(client_socket, &rfd, 0, 0, 0);
+
+    if (rfd.fd_count)
+    {
+        if (FD_ISSET(client_socket, &rfd))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+bool wtr::SocketClient::ServerCanRead() const
+{
+    if (!connected)
+    {
+        return false;
+    }
+
+    fd_set wfd;
+    FD_ZERO(&wfd);
+    FD_SET(client_socket, &wfd);
+
+    int ret = select(client_socket, 0, &wfd, 0, 0);
+
+    if (wfd.fd_count)
+    {
+        if (FD_ISSET(client_socket, &wfd))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+std::string wtr::SocketClient::getLog() const
+{
+    return log;
+}
+std::string wtr::SocketClient::getLastLog() const
+{
+    return last_log;
+}
+std::string wtr::SocketClient::getIp() const
+{
+    return ip_address;
+}
+uint16_t wtr::SocketClient::getPort() const
+{
+    return port;
+}
+bool wtr::SocketClient::isConnected() const
+{
+    return connected;
+}
+void wtr::SocketClient::Log(const std::string& str)
+{
+    log.append("<" + utility::Timestamp::get() + "> " + str + "\n");
+    last_log = str;
+}
+//////////////////////////////////////////////////

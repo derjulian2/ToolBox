@@ -1,157 +1,195 @@
 #include "WinTransfer.hpp"
 #include "CmdDialog.hpp"
-#define UTIL_MOD_FILEMANIP
-#include "utilitylib.hpp"
 
-static inline int wintransfer_main(int argc, char** argv)
+#include <thread>
+#include <mutex>
+
+std::string client_rec_buf;
+std::string server_rec_buf;
+
+static inline int client_recv(wtr::SocketClient* socket)
 {
-    if (argc != 2)
+    bool con = true;
+    while (con)
     {
-        if (argc == 1)
+        if (socket->DataReceived())
         {
-            std::cerr << "WinTransfer error at " << argv[0] << ": invalid arguments" << std::endl;
+            int res = socket->Receive(client_rec_buf);
+            if (res == 0 || res == -1)
+            {
+                con = false;
+            }
         }
-        else
+    }
+    return 0;
+}
+
+static inline int client()
+{
+    std::string ip_address = "192.168.2.126";
+    std::string port_in;
+    uint16_t port;
+
+    std::getline(std::cin, port_in);
+    port = std::stoi(port_in);
+    wtr::SocketClient client;
+
+    if (!client.Connect(ip_address, port))
+    {
+        std::cerr << "unable to connect to server: " << client.getLastLog() << std::endl;
+        return -1;
+    }
+    std::thread recv_thread(client_recv, &client);
+
+    cmd::Dialog dialog("WinTransfer", cmd::DEFAULT_HELP);
+
+    dialog.AddFunction("q", [&](DIALOG_ARGS)
         {
-            std::cerr << "WinTransfer error: invalid arguments" << std::endl;
+            if (argcount != 0)
+                return;
+            client.Shutdown();
+            dialog.close();
+        });
+    dialog.AddFunction("send", [&](DIALOG_ARGS)
+        {
+            if (argcount != 1)
+                return;
+            if (client.ServerCanRead())
+            {
+                client.Send(arguments[0]);
+            }
+            std::cout << client.getLastLog() << std::endl;
+        });
+    dialog.AddFunction([]() {
+        if (client_rec_buf.size())
+        {
+            std::cout << client_rec_buf << std::endl;
+            client_rec_buf.clear();
         }
+        });
+    // main thread will handle the dialog
+    dialog.query(std::cout, std::cin);
+    recv_thread.join();
+
+    return 0;
+}
+
+static inline int server_recv(wtr::SocketServer* socket)
+{
+    bool con = true;
+    while (con)
+    {
+        if (socket->isConnected())
+        {
+            if (socket->DataReceived())
+            {
+                int res = socket->Receive(server_rec_buf);
+                if (res == 0 || res == -1)
+                {
+                    con = false;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+static inline int server_accept(wtr::SocketServer* socket)
+{
+    while (!socket->isConnected())
+    {
+        if (socket->AcceptClient())
+        {
+            std::cout << "client connected!" << std::endl;
+        }
+    }
+    return 0;
+}
+
+static inline int server()
+{
+    std::string ip_address;
+    if (!wtr::getLocalIpv4Address(ip_address))
+    {
+        std::cerr << "WinTransfer failed to determine local ip-address" << std::endl;
         return -1;
     }
 
-    if (!wtr::NetworkStartup())
+    wtr::SocketServer server;
+    if (!server.Startup(ip_address))
     {
-        return -1;
+        std::cerr << server.getLog() << std::endl;
     }
+    std::cout << server.getLastLog() << std::endl;
+    
 
-    if (std::string(argv[1]) == "-c") // wintransfer in client mode
+    std::thread recv_thread(server_recv, &server);
+    std::thread accept_thread(server_accept, &server);
+
+    cmd::Dialog dialog("WinTransfer", cmd::DEFAULT_HELP);
+
+    dialog.AddFunction("q", [&](DIALOG_ARGS)
+        {
+            if (argcount != 0)
+                return;
+            server.Shutdown();
+            dialog.close();
+        });
+    dialog.AddFunction("send", [&](DIALOG_ARGS)
+        {
+            if (argcount != 1)
+                return;
+            if (server.ClientCanRead())
+            {
+                server.Send(arguments[0]);
+            }
+            std::cout << server.getLastLog() << std::endl;
+        });
+    dialog.AddFunction("client", [&](DIALOG_ARGS)
+        {
+            if (argcount != 0)
+                return;
+            std::cout << server.getClientInfo() << std::endl;
+        });
+    dialog.AddFunction([]() {
+        if (server_rec_buf.size())
+        {
+            std::cout << server_rec_buf << std::endl;
+            server_rec_buf.clear();
+        }
+        });
+    // main thread will handle the dialog
+    dialog.query(std::cout, std::cin);
+    if (accept_thread.joinable())
     {
-        wtr::ClientSocket client;
-        if (!client.Open())
-        {
-            std::cerr << "WinTransfer error at " << argv[0] << ": failed to open client socket";
-            std::cerr << "socket logs: " << std::endl << client.getLog() << std::endl;
-            return -1;
-        }
-
-        CmdDialog dialog("WinTransfer", CmdDialogFlags::DEFAULT_HELP | CmdDialogFlags::DEFAULT_QUIT);
-
-        dialog.AddCmdDialogFunction("connect", "connect to WinTransfer server", { "[ipv4] ip-address", "[int] port"},
-            [&](const ArgCount& c, const Arguments& args)
-            {
-                if (c != 2)
-                {
-                    std::cerr << "connect: invalid arguments" << std::endl;
-                    return;
-                }
-                client.Connect(args[0].c_str(), std::stoi(args[1]));
-            });
-        dialog.AddCmdDialogFunction("send_file", "send files to connected server", { "[path] path to file" },
-            [&](const ArgCount& c, const Arguments& args)
-            {
-                if (c != 2)
-                {
-                    std::cerr << "connect: invalid arguments" << std::endl;
-                    return;
-                }
-            });
-        dialog.AddCmdDialogFunction("send_msg", "send messages to connected server", { "[string] message" },
-            [&](const ArgCount& c, const Arguments& args)
-            {
-                if (c != 1)
-                {
-                    std::cerr << "send_msg: invalid arguments" << std::endl;
-                    return;
-                }
-                client.Send(args[0]);
-            });
-        dialog.AddCmdDialogFunction("receive", "collect the server's sent data", { "[none]" },
-            [&](const ArgCount& c, const Arguments& args)
-            {
-                if (c != 0)
-                {
-                    std::cerr << "receive: invalid arguments" << std::endl;
-                    return;
-                }
-                std::string receive;
-                client.Receive(receive);
-                std::cout << receive << std::endl;
-            });
-
-        dialog.QueryInput();
+        accept_thread.join();
     }
-    else if (std::string(argv[1]) == "-s") // wintransfer in server mode
-    {
-        wtr::ServerSocket server;
-        if (!server.Open())
-        {
-            std::cerr << "WinTransfer error at " << argv[0] << ": failed to open server socket";
-            std::cerr << "socket logs: " << std::endl << server.getLog() << std::endl;
-            return -1;
-        }
-        std::string ip_address;
-        try
-        {
-            ip_address = wtr::getLocalIpv4Address();
-        }
-        catch (const std::exception& except)
-        {
-            std::cerr << "WinTransfer error at " << argv[0] << ": " << except.what() << std::endl;
-            return -1;
-        }
-        if (!server.Listen(ip_address))
-        {
-            std::cerr << "WinTransfer error at " << argv[0] << ": failed in ServerSocket::Listen()" << std::endl;
-            std::cerr << "socket logs: " << std::endl << server.getLog() << std::endl;
-            return -1;
-        }
-        std::cout << "started WinTransfer server at " << server.getIp() << " on port " << server.getPort() << std::endl;
-        std::cout << "waiting on incoming client connection..." << std::endl;
-        if (!server.Accept())
-        {
-            std::cerr << "WinTransfer error at " << argv[0] << ": failed in ServerSocket::Accept()" << std::endl;
-            std::cerr << "socket logs: " << std::endl << server.getLog() << std::endl;
-            return -1;
-        }
+    recv_thread.join();
 
-        CmdDialog dialog("WinTransfer", CmdDialogFlags::DEFAULT_HELP | CmdDialogFlags::DEFAULT_QUIT);
-
-        dialog.AddCmdDialogFunction("send_file", "send files to connected client", { "[path] path to file" },
-            [&](const ArgCount& c, const Arguments& args)
-            {
-
-            });
-        dialog.AddCmdDialogFunction("send_msg", "send messages to connected client", { "[string] message" },
-            [&](const ArgCount& c, const Arguments& args)
-            {
-                if (c != 1)
-                {
-                    std::cerr << "send_msg: invalid arguments" << std::endl;
-                    return;
-                }
-                server.Send(args[0]);
-            });
-        dialog.AddCmdDialogFunction("receive", "collect the client's sent data", { "[none]" },
-            [&](const ArgCount& c, const Arguments& args)
-            {
-                if (c != 0)
-                {
-                    std::cerr << "receive: invalid arguments" << std::endl;
-                    return;
-                }
-                std::string receive;
-                server.Receive(receive);
-                std::cout << receive << std::endl;
-            });
-
-        dialog.QueryInput();
-    }
-
-    wtr::NetworkCleanup();
     return 0;
 }
 
 int main(int argc, char** argv) 
 {
-    return wintransfer_main(argc, argv);
+    if (!wtr::NetworkStartup())
+    {
+        std::cerr << "WinTransfer failed to start" << std::endl;
+        return -1;
+    }
+
+    std::string cs;
+    std::getline(std::cin, cs);
+
+    char c = cs[0];
+    if (c == 'c')
+    {
+        client();
+    }
+    else if (c == 's')
+    {
+        server();
+    }
+
+    wtr::NetworkCleanup();
     return 0;
 }
