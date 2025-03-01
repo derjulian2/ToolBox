@@ -28,6 +28,7 @@
 #include <iomanip>
 #include <sstream>
 #include <ctime>
+#include <functional>
 #endif
 #if defined(UTIL_MOD_STRINGMANIP) || defined(UTIL_MOD_ALL)
 #include <iostream>
@@ -147,6 +148,22 @@ namespace utility
 		std::string timestamp;
 		uint64_t count;
 	};
+
+	/*
+	* [blocking]
+	* executes the passed function as often as it can for the specified time frame.
+	* amount of times the function gets executed may vary strongly depends on resource allocation
+	*/
+	static inline void execute_for_ms(std::function<void()> func, std::chrono::milliseconds dur)
+	{
+		utility::Timestamp current_time;
+		utility::Timestamp end_time = current_time.count + dur.count();
+		while (current_time.count < end_time.count)
+		{
+			func();
+			current_time = utility::Timestamp();
+		}
+	}
 
 #endif
 
