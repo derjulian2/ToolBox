@@ -154,13 +154,14 @@ namespace utility
 	* executes the passed function as often as it can for the specified time frame.
 	* amount of times the function gets executed may vary strongly depends on resource allocation
 	*/
-	static inline void execute_for_ms(std::function<void()> func, std::chrono::milliseconds dur)
+	static inline void execute_for_ms(std::function<void(bool& quit)> func, std::chrono::milliseconds dur)
 	{
 		utility::Timestamp current_time;
 		utility::Timestamp end_time = current_time.count + dur.count();
-		while (current_time.count < end_time.count)
+		bool quit = false;
+		while (current_time.count < end_time.count && !quit)
 		{
-			func();
+			func(quit);
 			current_time = utility::Timestamp();
 		}
 	}
