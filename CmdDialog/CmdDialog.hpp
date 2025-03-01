@@ -32,6 +32,10 @@ namespace cmd
 		Dialog(const std::string& name = "dialog", const DialogFlags& flags = DEFAULT_QUIT | DEFAULT_HELP);
 
 		/*
+		* adds a function that will be executed every iteration of the dialog
+		*/
+		void AddFunction(const std::function<void(void)>& func);
+		/*
 		* adds a function to the user dialog
 		* NOTE: you have to perform argument-checks yourself in your callbacks, Dialog will not ensure expected arguments
 		* are the same as the actually passed arguments.
@@ -64,6 +68,7 @@ namespace cmd
 		};
 
 		std::vector<DialogFunction> functions;
+		std::vector<std::function<void(void)>> proc_functions;
 
 		void PrintHelp();
 	};

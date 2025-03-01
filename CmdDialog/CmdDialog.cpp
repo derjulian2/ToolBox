@@ -20,6 +20,14 @@ cmd::Dialog::Dialog(const std::string& name, const DialogFlags& flags) : dialogn
 	}
 }
 
+void cmd::Dialog::AddFunction(const std::function<void(void)>& func)
+{
+	if (func != 0)
+	{
+		proc_functions.emplace_back(func);
+	}
+}
+
 void cmd::Dialog::AddFunction(const std::string& name, 
 	const std::function<void(const ArgCount&, const Arguments&)>& func,
 	const std::string& description,
@@ -40,6 +48,11 @@ void cmd::Dialog::query(std::ostream& out, std::istream& in)
 
 	while (!terminate_dialog)
 	{
+		for (const std::function<void(void)>& func : proc_functions)
+		{
+			func();
+		}
+
 		out << dialogname << "> ";
 		std::getline(in, input);
 
