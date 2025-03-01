@@ -152,16 +152,18 @@ namespace utility
 	/*
 	* [blocking]
 	* executes the passed function as often as it can for the specified time frame.
-	* amount of times the function gets executed may vary strongly depends on resource allocation
+	* amount of times the function gets executed may vary and strongly depends on resource allocation
+ 
+ 	* 'bool& cancel' can be set to true in your callback function to cancel execution before the timer ends
 	*/
-	static inline void execute_for_ms(std::function<void(bool& quit)> func, std::chrono::milliseconds dur)
+	static inline void execute_for_ms(std::function<void(bool&)> func, std::chrono::milliseconds dur)
 	{
 		utility::Timestamp current_time;
 		utility::Timestamp end_time = current_time.count + dur.count();
-		bool quit = false;
-		while (current_time.count < end_time.count && !quit)
+		bool cancel = false;
+		while (current_time.count < end_time.count && !cancel)
 		{
-			func(quit);
+			func(cancel);
 			current_time = utility::Timestamp();
 		}
 	}
