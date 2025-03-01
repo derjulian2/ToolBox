@@ -16,7 +16,6 @@
 #ifndef UTIL_H
 #define UTIL_H
 ////////////////////////////////////////
-#define _CRT_SECURE_NO_WARNINGS
 #if defined(UTIL_MOD_RANDOM) || defined(UTIL_MOD_ALL)
 #include <random>
 #include <cstdint>
@@ -109,13 +108,16 @@ namespace utility
 			std::chrono::system_clock::time_point tp = std::chrono::system_clock::now();
 			count = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
 			std::time_t time_t = std::chrono::system_clock::to_time_t(tp);
-
+			
+			tm time_tm;
+			gmtime_s(&time_tm, &time_t);
+			
 			std::stringstream datebuffer;
-			datebuffer << std::put_time(std::gmtime(&time_t), "%d.%m.%Y");
+			datebuffer << std::put_time(&time_tm, "%d.%m.%Y");
 			date = datebuffer.str();
 
 			std::stringstream timebuffer;
-			timebuffer << std::put_time(std::gmtime(&time_t), "%H:%M:%S");
+			timebuffer << std::put_time(&time_tm, "%H:%M:%S");
 			time = timebuffer.str();
 
 			timestamp = date + " " + time;
@@ -127,12 +129,15 @@ namespace utility
 			count = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
 			std::time_t time_t = std::chrono::system_clock::to_time_t(tp);
 
+			tm time_tm;
+			gmtime_s(&time_tm, &time_t);
+
 			std::stringstream datebuffer;
-			datebuffer << std::put_time(std::gmtime(&time_t), "%d.%m.%Y");
+			datebuffer << std::put_time(&time_tm, "%d.%m.%Y");
 			date = datebuffer.str();
 
 			std::stringstream timebuffer;
-			timebuffer << std::put_time(std::gmtime(&time_t), "%H:%M:%S");
+			timebuffer << std::put_time(&time_tm, "%H:%M:%S");
 			time = timebuffer.str();
 
 			timestamp = date + " " + time;
