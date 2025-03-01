@@ -21,6 +21,11 @@
 * allows windows-specific socket-communication between applications.
 *
 * make sure to call NetworkStartup() beforehand and NetworkCleanup() afterwards.
+* 
+* server handles one client only and the sockets are in non-blocking mode.
+* possible ways to go forward:
+* - server handles multiple clients
+* - implement multi-threaded server
 */
 //////////////////////////////////////////////////
 #define RECEIVE_BUFFER_MSG_LEN  0b111111111
@@ -52,14 +57,12 @@ namespace wtr
 		bool Startup(const std::string& ip_address, uint16_t port = 0);
 		void Shutdown();
 		/*
-		* [blocking]
-		* should be done in another thread?
 		* accepts an incoming client connection
 		*/
 		bool AcceptClient();
 
 		bool Send(const std::string&);
-		int Receive(std::string& out, bool largebuf = false);
+		bool Receive(std::string& out, bool largebuf = false);
 
 		bool DataReceived() const;
 		bool ClientCanRead() const;
@@ -100,7 +103,7 @@ namespace wtr
 		void Shutdown();
 		
 		bool Send(const std::string&);
-		int Receive(std::string& out, bool largebuf = false);
+		bool Receive(std::string& out, bool largebuf = false);
 
 		bool DataReceived() const;
 		bool ServerCanRead() const;

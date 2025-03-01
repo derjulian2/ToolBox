@@ -1,37 +1,23 @@
 #include "WinTransfer.hpp"
 #include "CmdDialog.hpp"
 
-#include <thread>
-#include <mutex>
-
-std::string client_rec_buf;
-std::string server_rec_buf;
-
-static inline int client_recv(wtr::SocketClient* socket)
-{
-    bool con = true;
-    while (con)
-    {
-        if (socket->DataReceived())
-        {
-            int res = socket->Receive(client_rec_buf);
-            if (res == 0 || res == -1)
-            {
-                con = false;
-            }
-        }
-    }
-    return 0;
-}
-
 static inline int client()
 {
     std::string ip_address = "192.168.2.126";
     std::string port_in;
     uint16_t port;
 
+    std::cout << "port number: ";
     std::getline(std::cin, port_in);
-    port = std::stoi(port_in);
+    std::cout << std::endl;
+    try
+    {
+        port = std::stoi(port_in);
+    }
+    catch (std::exception e)
+    {
+        return -1;
+    }
     wtr::SocketClient client;
 
     if (!client.Connect(ip_address, port))
@@ -39,7 +25,6 @@ static inline int client()
         std::cerr << "unable to connect to server: " << client.getLastLog() << std::endl;
         return -1;
     }
-    std::thread recv_thread(client_recv, &client);
 
     cmd::Dialog dialog("WinTransfer", cmd::DEFAULT_HELP);
 
@@ -54,55 +39,20 @@ static inline int client()
         {
             if (argcount != 1)
                 return;
+            std::string filebuf;
+            if (!utility::readfile(arguments[0], filebuf))
+            {
+                return;
+            }
             if (client.ServerCanRead())
             {
-                client.Send(arguments[0]);
+                client.Send(filebuf);
             }
             std::cout << client.getLastLog() << std::endl;
         });
-    dialog.AddFunction([]() {
-        if (client_rec_buf.size())
-        {
-            std::cout << client_rec_buf << std::endl;
-            client_rec_buf.clear();
-        }
-        });
-    // main thread will handle the dialog
+
     dialog.query(std::cout, std::cin);
-    recv_thread.join();
 
-    return 0;
-}
-
-static inline int server_recv(wtr::SocketServer* socket)
-{
-    bool con = true;
-    while (con)
-    {
-        if (socket->isConnected())
-        {
-            if (socket->DataReceived())
-            {
-                int res = socket->Receive(server_rec_buf);
-                if (res == 0 || res == -1)
-                {
-                    con = false;
-                }
-            }
-        }
-    }
-    return 0;
-}
-
-static inline int server_accept(wtr::SocketServer* socket)
-{
-    while (!socket->isConnected())
-    {
-        if (socket->AcceptClient())
-        {
-            std::cout << "client connected!" << std::endl;
-        }
-    }
     return 0;
 }
 
@@ -115,56 +65,74 @@ static inline int server()
         return -1;
     }
 
-    wtr::SocketServer server;
-    if (!server.Startup(ip_address))
+    bool session = true;
+    bool retry = false;
+
+    while (session)
     {
-        std::cerr << server.getLog() << std::endl;
-    }
-    std::cout << server.getLastLog() << std::endl;
-    
-
-    std::thread recv_thread(server_recv, &server);
-    std::thread accept_thread(server_accept, &server);
-
-    cmd::Dialog dialog("WinTransfer", cmd::DEFAULT_HELP);
-
-    dialog.AddFunction("q", [&](DIALOG_ARGS)
+        wtr::SocketServer server;
+        if (!server.Startup(ip_address))
         {
-            if (argcount != 0)
-                return;
-            server.Shutdown();
-            dialog.close();
-        });
-    dialog.AddFunction("send", [&](DIALOG_ARGS)
-        {
-            if (argcount != 1)
-                return;
-            if (server.ClientCanRead())
-            {
-                server.Send(arguments[0]);
-            }
-            std::cout << server.getLastLog() << std::endl;
-        });
-    dialog.AddFunction("client", [&](DIALOG_ARGS)
-        {
-            if (argcount != 0)
-                return;
-            std::cout << server.getClientInfo() << std::endl;
-        });
-    dialog.AddFunction([]() {
-        if (server_rec_buf.size())
-        {
-            std::cout << server_rec_buf << std::endl;
-            server_rec_buf.clear();
+            std::cerr << server.getLog() << std::endl;
+            return -1;
         }
-        });
-    // main thread will handle the dialog
-    dialog.query(std::cout, std::cin);
-    if (accept_thread.joinable())
-    {
-        accept_thread.join();
+        std::cout << server.getLastLog() << std::endl;
+        std::cout << "Timeout in 60s" << std::endl;
+
+        utility::execute_for_ms([&](bool& quit) {
+            if (!server.isConnected())
+            {
+                if (server.AcceptClient())
+                {
+                    std::cout << server.getLastLog() << std::endl;
+                }
+            }
+            else
+            {
+                quit = true;
+            }
+            }, std::chrono::milliseconds(1000 * 60));
+
+        if (!server.isConnected())
+        {
+            cmd::YesNoAll dialog("server established no client connection. retry?",
+                [&]() {std::cout << "retrying..." << std::endl; retry = true; }, [&]() { std::cout << "exiting..." << std::endl; session = false; });
+        }
+        if (retry)
+        {
+            retry = false;
+            continue;
+        }
+        std::cout << "server waiting for request" << std::endl;
+        std::cout << "Timeout in 60s" << std::endl;
+
+        std::string out;
+        utility::execute_for_ms([&](bool& quit) {
+            if (server.DataReceived())
+            {
+                server.Receive(out, true);
+                quit = true;
+            }
+            }, std::chrono::milliseconds(1000 * 60));
+
+        if (out.size())
+        {
+            utility::writetofile("file.txt", out);
+            std::cout << "wrote " << out.size() << " bytes to file" << std::endl;
+        }
+        else
+        {
+            cmd::YesNoAll dialog("server established no client connection. retry?",
+                [&]() {std::cout << "retrying..." << std::endl; retry = true; }, [&]() { std::cout << "exiting..." << std::endl; session = false; });
+        }
+        if (retry)
+        {
+            retry = false;
+            continue;
+        }
+
+        session = false;
     }
-    recv_thread.join();
 
     return 0;
 }
@@ -177,8 +145,10 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    std::cout << "[c]lient or [s]erver? ";
     std::string cs;
     std::getline(std::cin, cs);
+    std::cout << std::endl;
 
     char c = cs[0];
     if (c == 'c')

@@ -180,6 +180,11 @@ bool wtr::SocketServer::AcceptClient()
 
     client_socket = accept(server_socket, NULL, NULL);
 
+    if (WSAGetLastError() == WSAEWOULDBLOCK)
+    {
+        return false;
+    }
+
     if (client_socket == INVALID_SOCKET)
     {
         Log("server could not accept incoming client");
@@ -213,7 +218,7 @@ bool wtr::SocketServer::Send(const std::string& str)
         return true;
     }
 }
-int wtr::SocketServer::Receive(std::string& out, bool largebuf)
+bool wtr::SocketServer::Receive(std::string& out, bool largebuf)
 {
     if (!online)
     {
@@ -479,11 +484,11 @@ bool wtr::SocketClient::Send(const std::string& str)
         return true;
     }
 }
-int wtr::SocketClient::Receive(std::string& out, bool largebuf)
+bool wtr::SocketClient::Receive(std::string& out, bool largebuf)
 {
     if (!connected)
     {
-        return -1;
+        return false;
     }
     char* receive_buf = nullptr;
     long length = 0;
@@ -503,7 +508,10 @@ int wtr::SocketClient::Receive(std::string& out, bool largebuf)
     int error = recv(client_socket, receive_buf, length, 0);
     if (error == SOCKET_ERROR)
     {
-        Log("failed to receive message from server");
+        if (WSAGetLastError() != WSAEWOULDBLOCK)
+        {
+            Log("failed to receive message from server");
+        }
         if (receive_buf)
         {
             delete[] receive_buf;
