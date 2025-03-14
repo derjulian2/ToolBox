@@ -148,7 +148,7 @@ namespace util
 		return res;
 	}
 
-	static inline std::vector<std::string> split_string(const std::string& input, const std::string& split, bool no_empty_strings = true)
+	static inline std::vector<std::string> split_string(const std::string& input, const std::string& delimiter, bool no_empty_strings = true)
 	{
 		std::vector<std::string> res;
 		size_t index = 0;
