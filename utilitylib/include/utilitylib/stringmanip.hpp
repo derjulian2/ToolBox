@@ -23,19 +23,29 @@ namespace util
 		t.cend();
 		t.size();
 	};
-	
-	template <typename T>
-	concept printable_c = requires(const T & elem)
+
+	template <typename Type>
+	concept printable_c = requires(const Type & elem)
 	{
 		std::cout << elem;
 	};
 
-/*
-* print containers that satisfy the constraints
-*/
+	template <typename Type>
+	concept to_string_c = requires(const Type & elem)
+	{
+		std::to_string(elem);
+	};
+
+	template <typename Type>
+	concept string_c = requires(const Type & elem)
+	{
+		static_cast<std::string>(elem);
+	};
+
+	// direct ostream << operator for iterable ranges and << operator supporting types
 
 	template <template <typename> typename _container_t, typename _elem_t>
-	requires container_c<_container_t<_elem_t>> and printable_c<_elem_t>
+		requires container_c<_container_t<_elem_t>> and printable_c<_elem_t>
 	constexpr static inline std::ostream& operator<<(std::ostream& os, const _container_t<_elem_t>& range)
 	{
 		if (!range.size())
@@ -43,12 +53,12 @@ namespace util
 			os << "[ ]";
 			return os;
 		}
-	
+
 		typename _container_t<_elem_t>::const_iterator  begin = range.cbegin();
 		typename _container_t<_elem_t>::const_iterator  end = range.cend();
 		typename _container_t<_elem_t>::const_iterator  last_element = range.cend();
 		last_element--;
-	
+
 		os << "[ ";
 		for (typename _container_t<_elem_t>::const_iterator i = begin; i != end; i++)
 		{
@@ -67,7 +77,7 @@ namespace util
 	}
 
 	template <template <class, class> class _container_t, class _elem_t, template <class> class _allocator_t>
-	requires container_c<_container_t<_elem_t, _allocator_t<_elem_t>>> and printable_c<_elem_t>
+		requires container_c<_container_t<_elem_t, _allocator_t<_elem_t>>> and printable_c<_elem_t>
 	constexpr static inline std::ostream& operator<<(std::ostream& os, const _container_t<_elem_t, _allocator_t<_elem_t>>& range)
 	{
 		if (!range.size())
@@ -75,12 +85,12 @@ namespace util
 			os << "[ ]";
 			return os;
 		}
-	
+
 		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  begin = range.cbegin();
 		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  end   = range.cend();
 		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  last_element = range.cend();
 		last_element--;
-	
+
 		os << "[ ";
 		for (typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator i = begin; i != end; i++)
 		{
@@ -97,6 +107,143 @@ namespace util
 		os << "]";
 		return os;
 	}
+
+	// to_string for std::to_string() convertible types on ranges
+
+	template <template <typename> typename _container_t, typename _elem_t>
+		requires container_c<_container_t<_elem_t>> and to_string_c<_elem_t>
+	constexpr static inline std::string to_string(const _container_t<_elem_t>& range)
+	{
+		if (!range.size())
+		{
+			return "[ ]";
+		}
+
+		std::string res;
+
+		typename _container_t<_elem_t>::const_iterator  begin = range.cbegin();
+		typename _container_t<_elem_t>::const_iterator  end = range.cend();
+		typename _container_t<_elem_t>::const_iterator  last_element = range.cend();
+		last_element--;
+
+		res.append("[ ");
+		for (typename _container_t<_elem_t>::const_iterator i = begin; i != end; i++)
+		{
+			res.append(std::to_string(*i));
+			if (i != last_element)
+			{
+				res.append(", ");
+			}
+			else
+			{
+				res.append(" ");
+			}
+		}
+		res.append("]");
+		return res;
+	}
+
+	template <template <class, class> class _container_t, class _elem_t, template <class> class _allocator_t>
+		requires container_c<_container_t<_elem_t, _allocator_t<_elem_t>>> and to_string_c<_elem_t>
+	constexpr static inline std::string to_string(const _container_t<_elem_t, _allocator_t<_elem_t>>& range)
+	{
+		if (!range.size())
+		{
+			return "[ ]";
+		}
+
+		std::string res;
+
+		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  begin = range.cbegin();
+		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  end = range.cend();
+		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  last_element = range.cend();
+		last_element--;
+
+		res.append("[ ");
+		for (typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator i = begin; i != end; i++)
+		{
+			res.append(std::to_string(*i));
+			if (i != last_element)
+			{
+				res.append(", ");
+			}
+			else
+			{
+				res.append(" ");
+			}
+		}
+		res.append("]");
+		return res;
+	}
+
+	//to_string for static_cast<std::string>() convertible types on ranges
+
+	template <template <typename> typename _container_t, typename _elem_t>
+		requires container_c<_container_t<_elem_t>> and string_c<_elem_t>
+	constexpr static inline std::string to_string(const _container_t<_elem_t>& range)
+	{
+		if (!range.size())
+		{
+			return "[ ]";
+		}
+
+		std::string res;
+
+		typename _container_t<_elem_t>::const_iterator  begin = range.cbegin();
+		typename _container_t<_elem_t>::const_iterator  end = range.cend();
+		typename _container_t<_elem_t>::const_iterator  last_element = range.cend();
+		last_element--;
+
+		res.append("[ ");
+		for (typename _container_t<_elem_t>::const_iterator i = begin; i != end; i++)
+		{
+			res.append(static_cast<std::string>(*i));
+			if (i != last_element)
+			{
+				res.append(", ");
+			}
+			else
+			{
+				res.append(" ");
+			}
+		}
+		res.append("]");
+		return res;
+	}
+
+	template <template <class, class> class _container_t, class _elem_t, template <class> class _allocator_t>
+		requires container_c<_container_t<_elem_t, _allocator_t<_elem_t>>> and string_c<_elem_t>
+	constexpr static inline std::string to_string(const _container_t<_elem_t, _allocator_t<_elem_t>>& range)
+	{
+		if (!range.size())
+		{
+			return "[ ]";
+		}
+
+		std::string res;
+
+		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  begin = range.cbegin();
+		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  end = range.cend();
+		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  last_element = range.cend();
+		last_element--;
+
+		res.append("[ ");
+		for (typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator i = begin; i != end; i++)
+		{
+			res.append(static_cast<std::string>(*i));
+			if (i != last_element)
+			{
+				res.append(", ");
+			}
+			else
+			{
+				res.append(" ");
+			}
+		}
+		res.append("]");
+		return res;
+	}
+
 	/*
 	* considers a string empty if it does not contain any alphanumerical values or special characters
 	* (e.g. only whitespace or special ascii characters)
@@ -148,7 +295,7 @@ namespace util
 		return res;
 	}
 
-	static inline std::vector<std::string> split_string(const std::string& input, const std::string& delimiter, bool no_empty_strings = true)
+	static inline std::vector<std::string> split_string(const std::string& input, const std::string& split, bool no_empty_strings = true)
 	{
 		std::vector<std::string> res;
 		size_t index = 0;
