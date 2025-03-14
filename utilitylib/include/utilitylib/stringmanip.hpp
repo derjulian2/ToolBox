@@ -16,19 +16,19 @@
 namespace util
 {
 	template <typename Type>
-concept container_c = requires(const Type & t)
-{
-	typename Type::const_iterator;
-	t.cbegin();
-	t.cend();
-	t.size();
-};
-
-template <typename T>
-concept printable_c = requires(const T & elem)
-{
-	std::cout << elem;
-};
+	concept container_c = requires(const Type & t)
+	{
+		typename Type::const_iterator;
+		t.cbegin();
+		t.cend();
+		t.size();
+	};
+	
+	template <typename T>
+	concept printable_c = requires(const T & elem)
+	{
+		std::cout << elem;
+	};
 
 /*
 * print containers that satisfy the constraints
