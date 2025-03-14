@@ -14,12 +14,18 @@
 ////////////////////////////////////////
 namespace util
 {
+	struct regex_pattern
+	{
+		regex_pattern(const std::string& pattern) : pattern(pattern), regex(pattern) {}
+		std::string pattern;
+		std::regex  regex;
+	};
 
 	struct regex_match
 	{
 		std::string content;
-		size_t length;
-		size_t index;
+		size_t length = 0;
+		size_t index  = 0;
 	};
 
 	static inline std::vector<regex_match> get_matches(const std::string& input, const std::regex& regex)
@@ -44,14 +50,26 @@ namespace util
 		return res;
 	}
 
-	static inline std::vector<std::string> split_string(const std::string& input, const std::regex& regex, bool no_empty_strings = true)
+	static inline std::vector<std::string> split_string(const std::string& input, const util::regex_pattern& regex, bool no_empty_strings = true)
 	{
 		std::vector<std::string> res;
 
-		// find possible split-spots
-		std::vector<regex_match> matches = get_matches(input, regex);
-		if (matches.empty())
+		// if delimiter is "", input should be split at every index e.g. "input" would become { "i","n","p","u","t" }
+		if (!regex.pattern.length())
+		{
+			for (size_t i = 0; i < input.size(); i++)
+			{
+				res.emplace_back(input.substr(i, 1));
+			}
 			return res;
+		}
+
+		// find possible split-spots
+		std::vector<regex_match> matches = get_matches(input, regex.regex);
+		if (matches.empty())
+		{
+			return res;
+		}
 
 		// get regions between split-spots
 		for (uint64_t i = 0; i < matches.size(); i++)

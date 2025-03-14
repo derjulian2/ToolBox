@@ -295,17 +295,27 @@ namespace util
 		return res;
 	}
 
-	static inline std::vector<std::string> split_string(const std::string& input, const std::string& split, bool no_empty_strings = true)
+	static inline std::vector<std::string> split_string(const std::string& input, const std::string& delimiter, bool no_empty_strings = true)
 	{
 		std::vector<std::string> res;
-		size_t index = 0;
+
+		// if delimiter is "", input should be split at every index e.g. "input" would become { "i","n","p","u","t" }
+		if (!delimiter.length())
+		{
+			for (size_t i = 0; i < input.size(); i++)
+			{
+				res.emplace_back(input.substr(i,1));
+			}
+			return res;
+		}
 
 		// find possible split-spots
 		std::vector<size_t> indices;
-		while ((index = input.find(split, index)) != std::string::npos)
+		size_t index = 0;
+		while ((index = input.find(delimiter, index)) != std::string::npos)
 		{
 			indices.emplace_back(index);
-			index += split.length();
+			index += delimiter.length();
 		}
 		if (!indices.size())
 		{
@@ -324,12 +334,12 @@ namespace util
 			}
 			else
 			{
-				res.emplace_back(input.substr(indices[i - 1] + split.length(), indices[i] - (indices[i - 1] + split.length())));
+				res.emplace_back(input.substr(indices[i - 1] + delimiter.length(), indices[i] - (indices[i - 1] + delimiter.length())));
 			}
 		}
-		if (indices.back() + split.length() < input.length()) // account for case that 'split' is at the end
+		if (indices.back() + delimiter.length() < input.length()) // account for case that 'split' is at the end
 		{
-			res.emplace_back(input.substr(indices.back() + split.length(), input.length() - indices.back()));
+			res.emplace_back(input.substr(indices.back() + delimiter.length(), input.length() - indices.back()));
 		}
 
 		// clear possible empty strings
