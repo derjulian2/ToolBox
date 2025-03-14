@@ -11,28 +11,91 @@
 #include <vector>
 #include <string>
 #include <concepts>
+#include <iostream>
 ////////////////////////////////////////
 namespace util
 {
-	template <typename T>
-	concept Printable = requires(const T & elem)
-	{
-		std::cout << elem;
-	};
+	template <typename Type>
+concept container_c = requires(const Type & t)
+{
+	typename Type::const_iterator;
+	t.cbegin();
+	t.cend();
+	t.size();
+};
 
-	template <Printable T>
-	static inline std::string to_string(const std::vector<T>& vec)
+template <typename T>
+concept printable_c = requires(const T & elem)
+{
+	std::cout << elem;
+};
+
+/*
+* print containers that satisfy the constraints
+*/
+
+	template <template <typename> typename _container_t, typename _elem_t>
+	requires container_c<_container_t<_elem_t>> and printable_c<_elem_t>
+	constexpr static inline std::ostream& operator<<(std::ostream& os, const _container_t<_elem_t>& range)
 	{
-		std::stringstream res;
-		res << "[ ";
-		for (size_t iter = 0; iter < vec.size(); iter++)
+		if (!range.size())
 		{
-			res << vec[iter];
-			if (iter != vec.size() - 1)
-				res << ", ";
+			os << "[ ]";
+			return os;
 		}
-		res << " ]";
-		return res.str();
+	
+		typename _container_t<_elem_t>::const_iterator  begin = range.cbegin();
+		typename _container_t<_elem_t>::const_iterator  end = range.cend();
+		typename _container_t<_elem_t>::const_iterator  last_element = range.cend();
+		last_element--;
+	
+		os << "[ ";
+		for (typename _container_t<_elem_t>::const_iterator i = begin; i != end; i++)
+		{
+			os << *i;
+			if (i != last_element)
+			{
+				os << ", ";
+			}
+			else
+			{
+				os << " ";
+			}
+		}
+		os << "]";
+		return os;
+	}
+
+	template <template <class, class> class _container_t, class _elem_t, template <class> class _allocator_t>
+	requires container_c<_container_t<_elem_t, _allocator_t<_elem_t>>> and printable_c<_elem_t>
+	constexpr static inline std::ostream& operator<<(std::ostream& os, const _container_t<_elem_t, _allocator_t<_elem_t>>& range)
+	{
+		if (!range.size())
+		{
+			os << "[ ]";
+			return os;
+		}
+	
+		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  begin = range.cbegin();
+		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  end   = range.cend();
+		typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator  last_element = range.cend();
+		last_element--;
+	
+		os << "[ ";
+		for (typename _container_t<_elem_t, _allocator_t<_elem_t>>::const_iterator i = begin; i != end; i++)
+		{
+			os << *i;
+			if (i != last_element)
+			{
+				os << ", ";
+			}
+			else
+			{
+				os << " ";
+			}
+		}
+		os << "]";
+		return os;
 	}
 	/*
 	* considers a string empty if it does not contain any alphanumerical values or special characters
