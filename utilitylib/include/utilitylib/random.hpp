@@ -66,10 +66,14 @@ namespace util
 		{
 			numbers.emplace_back(i);
 		}
+		
+		std::random_device random_device;
+		std::mt19937 random_number_generator(random_device());
 
 		for (uint64_t i = 0; i < size; i++)
 		{
-			std::vector<uint64_t>::iterator next_num = numbers.begin() + randint(0, numbers.size() - 1);
+			std::uniform_int_distribution<std::mt19937::result_type> distribution(0, numbers.size() - 1);
+			std::vector<uint64_t>::iterator next_num = numbers.begin() + static_cast<uint64_t>(distribution(random_number_generator));
 			res.emplace_back(*next_num);
 			numbers.erase(next_num);
 		}
