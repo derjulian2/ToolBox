@@ -6,6 +6,9 @@
 
 // WORK IN PROGRESS
 
+// a lot of raw pointer usage
+// maybe remedy that by using smart pointers??? -> or unnecessary complicated
+
 namespace util
 {
 	template <typename _Ty>
@@ -14,27 +17,24 @@ namespace util
 	public:
 		using value_type = _Ty;
 
-		tree() = default;
-		tree(const tree&) = default;
-		tree& operator=(const tree&) = default;
-		/*
-		* tree node that holds one instance of 'value_type'
-		* seriously consider using std::list instead of vector because of iterator invalidation
-		* and reallocation when children get added/removed
-		* 
-		* also the use cases of child[0] are very limited because you probably rarely want to get
-		* a node by its index
-		*/
+		tree()
+		{
+			_root_nodes.emplace_back(node(nullptr, nullptr, value_type())); // emplace a 'null-node' that will mark the end of the tree
+		}
+		
 		class node
 		{
+			friend tree;
+
 			value_type _value;
 			node* _parent = nullptr;
+			std::list<node>* _sibling_nodes = nullptr; // ptr to sibling nodes to always know when the end of a node is reached
 			std::list<node> _child_nodes;
+			std::list<node>::iterator _this; // iterator to the node in the list pointed to by '::_sibling_nodes'
+
+			node(node* _p, std::list<node>* _s, const value_type& _val) 
+				: _parent(_p), _sibling_nodes(_s), _value(_val) { }
 		public:
-			node() = default;
-			node(const value_type& _val) : _value(_val) {};
-			node(const node&) = default;
-			node& operator=(const node&) = default;
 
 			node& operator=(const value_type& _val)
 			{
@@ -63,106 +63,94 @@ namespace util
 				throw std::runtime_error("parent was nullptr");
 			}
 
-			node& emplace_child(const value_type& _val)
+			node& emplace_node_back(const value_type& _val)
 			{
-				return _child_nodes.emplace_back(node(_val));
-			}
-
-		};
-		/*
-		* specialization of the node class that cannot have a parent
-		*/
-		class root_node
-		{
-			value_type _value;
-			std::list<node> _child_nodes;
-		public:
-			root_node& operator=(const value_type& _val)
-			{
-				this->_value = _val;
-				return *this;
-			}
-
-			value_type value() const
-			{
-				return _value;
-			}
-
-			value_type& get()
-			{
-				return _value;
-			}
-
-			node& emplace_child(const value_type& _val)
-			{
-				return _child_nodes.emplace_back(node(_val));
+				node& res = _child_nodes.emplace_back(node(this, &_child_nodes, _val));
+				res._this = std::prev(_child_nodes.end());
+				return res;
 			}
 		};
 
-		class iterator
+		node& emplace_node_back(const value_type& _val)
 		{
-			friend tree<value_type>;
-
-			node* _node;
-		
-			iterator(node& _valid_node)
-				: _node(&_valid_node)
-			{
-
-			}
-		public:
-			node& get()
-			{
-				return *_node;
-			}
-			/*
-			* should iterate over the tree from branch to branch jumping back to the last parent and then incrementing by one if branch ends
-			*/
-			void operator++()
-			{
-
-			}
-
-			void operator--()
-			{
-
-			}
-
-			node& operator*()
-			{
-				return *_node;
-			}
-
-			node* operator->()
-			{
-				return _node;
-			}
-
-		};
-
-		root_node& root()
-		{
-			return _root;
-		}
-
-		size_t size() const
-		{
-			return _size;
-		}
-
-		/*
-		* retreives all nodes which hold the value '_val'
-		* 
-		* can be costly as the entire tree is iterated through
-		*/
-		std::vector<node> search_for(const value_type& _val)
-		{
-
+			node& res = *_root_nodes.insert(std::prev(_root_nodes.end(), 1), node(nullptr, &_root_nodes, _val));
+			res._this = std::prev(_root_nodes.end(), 2); // for some reason works with example right now, but i dont think the right iterators are being assigned here
+			return res;
 		}
 
 	private:
-		root_node _root;
-		size_t _size; // total number of nodes
+		std::list<node> _root_nodes;
+	public:
+
+		class iterator
+		{
+			friend tree;
+
+			node* _ptr = nullptr;
+			iterator(node* _p) : _ptr(_p) { }
+
+			static node* _rec_parent_has_siblings(node* _parent_ptr)
+			{
+				if (_parent_ptr)
+				{
+					auto test = _parent_ptr->_this;
+					if (_parent_ptr->_this != std::prev(_parent_ptr->_sibling_nodes->end()))
+					{
+						return &*std::next(_parent_ptr->_this);
+					}
+					else
+					{
+						if (!_parent_ptr->_parent)
+						{
+							return &*std::next(_parent_ptr->_this);
+						}
+						return _rec_parent_has_siblings(_parent_ptr->_parent);
+					}
+				}
+				throw std::runtime_error("bad parent ptr");
+			}
+		public:
+	
+			iterator& operator++()
+			{
+				if (_ptr->_child_nodes.size())
+				{
+					_ptr = &_ptr->_child_nodes.front();
+					return *this;
+				}
+
+				if (_ptr->_this != std::prev(_ptr->_sibling_nodes->end()))
+				{
+					_ptr = &*std::next(_ptr->_this);
+					return *this;
+				}
+
+				if (_ptr->_parent) // recursively lookup if parent has siblings, if not go up one generation further
+				{
+					_ptr = _rec_parent_has_siblings(_ptr->_parent);
+					return *this;
+				}
+
+				throw std::runtime_error("bad tree iterator");
+			}
+
+			node& operator*() { return *_ptr; }
+
+			node* operator->() { return _ptr; }
+
+			friend bool operator==(const iterator& i, const iterator& j) { return i._ptr == j._ptr ? true : false; }
+			friend bool operator!=(const iterator& i, const iterator& j) { return i._ptr == j._ptr ? false : true; }
+		};
+
+		iterator begin()
+		{
+			return iterator(&_root_nodes.front());
+		}
+
+		iterator end()
+		{
+			return iterator(&_root_nodes.back());
+		}
 	};
 
 }
