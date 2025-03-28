@@ -4,12 +4,12 @@
 #include <memory>
 #include <concepts>
 #include <vector>
+#include <stdexcept>
 
 // work in progress
 // to do:
 // - const_iterator
 // - proper erasure
-// - maybe some corner-cases/exception handling
 
 namespace util
 {
@@ -30,49 +30,34 @@ namespace util
 		using value_type = _Ty;
 
 		class node;
+		
+		class bad_tree_node : public std::exception 
+		{
+		public:
+			bad_tree_node(const char* _Message) : std::exception(_Message) {}
+		};
+
+	private:
+		static std::shared_ptr<node> _lock(std::weak_ptr<node>& _ptr)
+		{
+			if (auto _res = _ptr.lock()) { return _res; }
+			else { throw bad_tree_node("tried to access deleted tree node"); }
+		}
+		static const std::shared_ptr<node> _const_lock(const std::weak_ptr<node>& _ptr)
+		{
+			if (auto _res = _ptr.lock()) { return _res; }
+			else { throw bad_tree_node("tried to access deleted tree node"); }
+		}
+	public:
 
 		class iterator
 		{
 			std::weak_ptr<node> _ptr;
 		public:
-			iterator(std::shared_ptr<node> _ptr)
-				: _ptr(_ptr)
-			{
+			explicit iterator(std::shared_ptr<node> _ptr)
+				: _ptr(_ptr) { }
 
-			}
-
-			std::shared_ptr<node> get()
-			{
-				if (std::shared_ptr<node> _lock = _ptr.lock())
-				{
-					return _lock;
-				}
-				else
-				{
-					throw std::runtime_error("iterator reference invalid");
-				}
-			}
-
-			iterator& operator++()
-			{
-				if (std::shared_ptr<node> _lock = _ptr.lock())
-				{
-					_ptr = _lock->_next;
-				}
-				else
-				{
-					throw std::runtime_error("iterator reference invalid");
-				}
-			}
-
-			iterator& operator-=(std::size_t _steps)
-			{
-				for (std::size_t i = 0; i < _steps; i++)
-				{
-					this->operator--();
-				}
-				return *this;
-			}
+			iterator& operator++() { _ptr = _lock(_ptr)->_next; return *this; }
 
 			iterator& operator+=(std::size_t _steps)
 			{
@@ -83,67 +68,35 @@ namespace util
 				return *this;
 			}
 
-			iterator& operator--()
+			iterator& operator--() { _ptr = _lock(_ptr)->_prev; return *this; }
+
+			iterator& operator-=(std::size_t _steps)
 			{
-				if (std::shared_ptr<node> _lock = _ptr.lock())
+				for (std::size_t i = 0; i < _steps; i++)
 				{
-					_ptr = _lock->_prev;
+					this->operator--();
 				}
-				else
-				{
-					throw std::runtime_error("iterator reference invalid");
-				}
+				return *this;
 			}
 
-			node& operator*()
-			{
-				if (std::shared_ptr<node> _lock = _ptr.lock())
-				{
-					return *_lock;
-				}
-				else
-				{
-					throw std::runtime_error("iterator reference invalid");
-				}
-			}
+			node& operator*() { return *_lock(_ptr); }
 
-			std::shared_ptr<node> operator->()
-			{
-				if (std::shared_ptr<node> _lock = _ptr.lock())
-				{
-					return _lock;
-				}
-				else
-				{
-					throw std::runtime_error("iterator reference invalid");
-				}
-			}
+			std::shared_ptr<node> operator->() { return _lock(_ptr); }
 
 			friend bool operator==(const iterator& i, const iterator& j) 
 			{
-				std::shared_ptr<node> _i = i._ptr.lock(); std::shared_ptr<node> _j = j._ptr.lock();
-				if (_i && _j)
-				{
-					return _i == _j ? true : false;
-				}
-				else
-				{
-					throw std::runtime_error("iterator reference invalid");
-				}
+				const std::shared_ptr<node> _i = _const_lock(i._ptr); const std::shared_ptr<node> _j = _const_lock(j._ptr);
+				return _i == _j ? true : false;
 			}
 			friend bool operator!=(const iterator& i, const iterator& j) 
 			{
-				std::shared_ptr<node> _i = i._ptr.lock(); std::shared_ptr<node> _j = j._ptr.lock();
-				if (_i && _j)
-				{
-					return _i == _j ? false : true;
-				}
-				else
-				{
-					throw std::runtime_error("iterator reference invalid");
-				}
+				const std::shared_ptr<node> _i = _const_lock(i._ptr); const std::shared_ptr<node> _j = _const_lock(j._ptr);
+				return _i == _j ? false : true;
 			}
 		};
+
+		friend bool operator==(const iterator& i, const iterator& j);
+		friend bool operator!=(const iterator& i, const iterator& j);
 
 		iterator begin()
 		{
@@ -157,55 +110,57 @@ namespace util
 
 		class node : public std::enable_shared_from_this<node>
 		{
-			value_type _value;
-			std::size_t _depth = 0U;
-			std::size_t _child_num = 0U;
 			std::shared_ptr<node> _next = nullptr;
 			std::weak_ptr<node> _prev;
 			std::weak_ptr<node> _parent;
+			std::vector<std::weak_ptr<node>> _child_nodes;
+			std::size_t _depth = 0U;
+			value_type _value;
 
 			friend tree;
 			friend iterator;
 
-			node(std::shared_ptr<node> _next, std::shared_ptr<node> _prev, std::size_t _depth, const value_type& _val)
-				: _next(_next), _prev(_prev), _depth(_depth), _value(_val) { }
-			node(std::shared_ptr<node> _parent, std::shared_ptr<node> _next, std::shared_ptr<node> _prev, std::size_t _depth, const value_type& _val)
-				: _parent(_parent), _next(_next), _prev(_prev), _depth(_depth), _value(_val) {
-			}
+			node(std::size_t _depth, const value_type& _val)
+				: _depth(_depth), _value(_val) { }
+			node(std::shared_ptr<node> _parent, std::size_t _depth, const value_type& _val)
+				: _parent(_parent), _depth(_depth), _value(_val) { }
 
 		public:
-
+			node& operator=(const value_type& _val) { this->_value = _val; return *this; }
 			value_type value() const { return _value; }
 			value_type& get() { return _value; }
 			std::size_t depth() { return _depth; }
 			bool has_parent() { return _parent.expired() ? false : true; }
 			node& parent()
 			{
-				if (std::shared_ptr<node> _lock = _parent.lock())
-				{
-					return *_lock;
-				}
-				else
-				{
-					throw std::runtime_error("node has no parent");
-				}
+				return *_lock(_parent);
+			}
+			std::vector<iterator> children()
+			{
+				std::vector<iterator> _res;
+				for (auto& _ptr : _child_nodes) { _res.emplace_back(iterator(_lock(_ptr))); }
+				return _res;
 			}
 
 			iterator emplace_front(const value_type& _val)
 			{
-				std::shared_ptr<node> _new_node = std::shared_ptr<node>(new node(this->shared_from_this(), _next, this->shared_from_this(), _depth + 1U, _val)); _child_num++;
-				_next = _new_node;
-				return _new_node;
+				std::shared_ptr<node> _new_node = std::shared_ptr<node>(new node(this->shared_from_this(), _depth + 1U, _val));
+				_insert_node(_new_node, this->shared_from_this(), _next);
+				_child_nodes.emplace_back(_new_node);
+				return iterator(_new_node);
 			}
 
 			iterator emplace_back(const value_type& _val)
 			{
-				iterator _last_child = this->shared_from_this();
-				_last_child += _child_num;
-				std::shared_ptr<node> _new_node = std::shared_ptr<node>(new node(this->shared_from_this(), _last_child->_next, _last_child.get(), _depth + 1U, _val)); _child_num++;
-				_last_child->_next->_prev = _new_node;
-				_last_child->_next = _new_node;
-				return _new_node;
+				std::shared_ptr<node> _new_node = std::shared_ptr<node>(new node(this->shared_from_this(), _depth + 1U , _val));
+				if (_child_nodes.size()) 
+				{ 
+					std::shared_ptr<node> _last_child = _lock(_child_nodes.back());
+					_insert_node(_new_node, _last_child, _last_child->_next); 
+				}
+				else { _insert_node(_new_node, this->shared_from_this(), _next); }
+				_child_nodes.emplace_back(_new_node);
+				return iterator(_new_node);
 			}
 
 			void erase_front()
@@ -215,45 +170,59 @@ namespace util
 
 			void erase_back()
 			{
-				iterator _last_child = this->shared_from_this();
-				_last_child += _child_num;
+
 			}
 		};
 
+		private:
+			// utility to rewire node head/tail on insertion
+			static void _insert_node(std::shared_ptr<node> _new, std::shared_ptr<node> _prev, std::shared_ptr<node> _next)
+			{
+				if (!_new || !_prev || !_next) { throw std::runtime_error("insertion failed because a node was nullptr"); }
+				
+				_new->_next = _next; // this needs to happen before _prev->_next is altered, otherwise all consecutive nodes get deallocated bc shared/weak ptrs
+				_new->_prev = _prev;
+
+				_next->_prev = _new;
+				_prev->_next = _new;
+			}
+
+			void _insert_first(std::shared_ptr<node> _new)
+			{
+				if (!_new) { throw std::runtime_error("first insertion failed because new node was nullptr"); }
+
+				_new->_next = _back;
+				_new->_prev = _back;
+				_back->_prev = _new;
+
+				_front = _new;
+			}
+
+		public:
+
 		tree()
 		{
-			_front = _back = std::shared_ptr<node>(new node(nullptr, nullptr, 0U, value_type())); // _back always points to the invalid .end() node
+			_front = _back = std::shared_ptr<node>(new node(0U, value_type())); // _back always points to the invalid .end() node
 		}
+
+		/*
+		* node manipulaton
+		*/
 
 		iterator emplace_front(const value_type& _val)
 		{
-			std::shared_ptr<node> _new_node = std::shared_ptr<node>(new node(_front, nullptr, 0U, _val));
-			_front->_prev = _new_node;
-			_front = _new_node;
-			return _new_node;
+			std::shared_ptr<node> _new_node = std::shared_ptr<node>(new node(0U, _val));
+			if (_back == _front) { _insert_first(_new_node); }
+			else { _insert_node(_new_node, _back, _front); }
+			return iterator(_new_node);
 		}
 
 		iterator emplace_back(const value_type& _val)
 		{
-			std::shared_ptr<node> _lock = _back->_prev.lock();
-			std::shared_ptr<node> _new_node = std::shared_ptr<node>(new node(_back, _lock, 0U, _val));
-			if (_back == _front)
-			{
-				_front = _new_node;
-			}
-			else
-			{
-				if (std::shared_ptr<node> __lock = _back->_prev.lock())
-				{
-					__lock->_next = _new_node;
-				}
-				else
-				{
-					throw std::runtime_error("previous node was expired");
-				}
-			}
-			_back->_prev = _new_node;
-			return _new_node;
+			std::shared_ptr<node> _new_node = std::shared_ptr<node>(new node(0U, _val));
+			if (_back == _front) { _insert_first(_new_node); }
+			else { _insert_node(_new_node, _lock(_back->_prev), _back); }
+			return iterator(_new_node);
 		}
 
 		void erase_front()
@@ -268,37 +237,28 @@ namespace util
 
 		void erase(iterator& _where)
 		{
-			// works for recursive branch erasure, probably some corner cases with _front or _back not handled
-			iterator _next = _where; ++_next;
-			while (_next->_depth > _where->_depth) { ++_next; }
-			if (std::shared_ptr<node> _lock = _where->_prev.lock())
-			{
-				_lock->_next = _next.get();
-				_next->_prev = _lock;
-			}
+
 		}
 
-		std::vector<std::reference_wrapper<node>> find(const value_type& _val)
+		/*
+		* search functions
+		*/
+
+		std::vector<iterator> find(const value_type& _val)
 		{
-			std::vector<std::reference_wrapper<node>> _res;
+			std::vector<iterator> _res;
 			for (iterator _iter = begin(); _iter != end(); ++_iter)
 			{
-				if (_iter->_value == _val)
-				{
-					_res.emplace_back(*_iter.get());
-				}
+				if (_iter->_value == _val) { _res.emplace_back(_iter); }
 			}
 			return _res;
 		}
 
-		node& find_first_of(const value_type& _val)
+		iterator find_first_of(const value_type& _val)
 		{
 			for (iterator _iter = begin(); _iter != end(); ++_iter)
 			{
-				if (_iter->_value == _val)
-				{
-					return *_iter.get();
-				}
+				if (_iter->_value == _val) { return _iter; }
 			}
 			throw std::runtime_error("could not find any node of given value");
 		}
