@@ -32,7 +32,7 @@ namespace util
 	 * C++ implementation of an iterable tree-data-structure
 	 *
 	 * every node of the tree can hold an arbitrary amount of child-nodes.
-	 * internally uses std::vector and std::shared_ptr/std::weak_ptr for this.
+	 * internally uses std::list and std::shared_ptr/std::weak_ptr for this.
 	 *
 	 * this implementation might not be ideal, but i tried my best.
 	 * 
