@@ -143,7 +143,7 @@ namespace util
 		public:
 
 			////////////////////////////////////////
-			/// value and adjecent node access
+			/// value and adjacent node access
 			////////////////////////////////////////
 
 			/*
