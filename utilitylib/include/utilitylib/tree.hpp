@@ -35,6 +35,9 @@ namespace util
 	 * internally uses std::list and std::shared_ptr/std::weak_ptr for this.
 	 *
 	 * this implementation might not be ideal, but i tried my best.
+  	 * actually i already have a more performant approach. instead of leaving ownership with the nodes, you store every node in a std::unordered_map
+         * and each node stores keys to adjacent nodes (parent, children, siblings)
+	 * after some testing i found that this is way faster than this pointer-based approach
 	 * 
 	 * features:
 	 * - tree-concatenation: trees can be merged. you can put nodes of one tree on a node of another
