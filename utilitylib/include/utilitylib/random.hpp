@@ -12,6 +12,8 @@
 #include <stdexcept>
 #include <random>
 #include <vector>
+#include <concepts>
+#include <cmath>
 ////////////////////////////////////////
 namespace util
 {
