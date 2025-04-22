@@ -15,6 +15,22 @@
 ////////////////////////////////////////
 namespace util
 {
+    /*
+     * prime testing function
+     * @param _num - unsigned integer type to test
+     * @tparam any type that satisfies std::unsigned_integral
+     * @returns true if _num is prime, otherwise false
+     */
+    template<typename num>
+        requires std::unsigned_integral<num>
+    static inline constexpr bool is_prime(const num& _num)
+    {
+        if (_num == 2U) { return true; }
+        num _iter = 1U;
+        do { if (!(_num % ++_iter)) { return false; }; } 
+        while (_iter <= static_cast<num>(std::floor(std::sqrt(static_cast<double>(_num)))));
+        return true;
+    }
 	/*
 	* random unsigned integer generation
 	* @param lower - the smallest possible random number
