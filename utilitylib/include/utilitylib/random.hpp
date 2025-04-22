@@ -25,10 +25,10 @@ namespace util
         requires std::unsigned_integral<num>
     static inline bool is_prime(const num& _num)
     {
-        if (_num == 2U) { return true; }
-        num _iter = 1U;
-        do { if (!(_num % ++_iter)) { return false; }; } 
-        while (_iter <= static_cast<num>(std::floor(std::sqrt(static_cast<double>(_num)))));
+        for (num _iter = 2U; _iter <= static_cast<num>(std::floor(std::sqrt(static_cast<double>(_num)))); ++_iter)
+        {
+            if (!(_num % _iter)) { return false; };
+        }
         return true;
     }
 	/*
