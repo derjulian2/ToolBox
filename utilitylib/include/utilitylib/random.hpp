@@ -18,16 +18,16 @@
 namespace util
 {
     /*
-     * prime testing function
-     * @param _num - unsigned integer type to test
-     * @tparam any type that satisfies std::unsigned_integral
+     * tests if a number is prime by finding even divisors up to sqrt(_num)
+     * @param _num unsigned integer type to test
+     * @tparam numtype any type that satisfies std::unsigned_integral
      * @returns true if _num is prime, otherwise false
      */
-    template<typename num>
-        requires std::unsigned_integral<num>
-    static inline bool is_prime(const num& _num)
+    template<typename numtype>
+        requires std::unsigned_integral<numtype>
+    static inline bool is_prime(const numtype& _num)
     {
-        for (num _iter = 2U; _iter <= static_cast<num>(std::floor(std::sqrt(static_cast<double>(_num)))); ++_iter)
+        for (numtype _iter = 2U; _iter <= static_cast<numtype>(std::floor(std::sqrt(static_cast<double>(_num)))); ++_iter)
         {
             if (!(_num % _iter)) { return false; };
         }
