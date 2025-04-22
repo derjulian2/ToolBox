@@ -23,7 +23,7 @@ namespace util
      */
     template<typename num>
         requires std::unsigned_integral<num>
-    static inline constexpr bool is_prime(const num& _num)
+    static inline bool is_prime(const num& _num)
     {
         if (_num == 2U) { return true; }
         num _iter = 1U;
